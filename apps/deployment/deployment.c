@@ -54,8 +54,8 @@
 static uint8_t ieee_addr[IEEE_ADDR_LEN];
 
 struct id_addr {
-  uint16_t id;
-  uint8_t ieee_addr[IEEE_ADDR_LEN];
+    uint16_t id;
+    uint8_t ieee_addr[IEEE_ADDR_LEN];
 };
 
 
@@ -82,35 +82,35 @@ static struct id_addr id_addr_list[] = {
 /* Returns the total number of nodes in the deployment */
 uint16_t deployment_get_n_nodes(void)
 {
-  return N_NODES;
+    return N_NODES;
 }
 
 void deployment_load_ieee_addr(void)
 {
-  ieee_addr_cpy_to(ieee_addr, IEEE_ADDR_LEN);
+    ieee_addr_cpy_to(ieee_addr, IEEE_ADDR_LEN);
 }
 
 uint8_t deployment_set_node_id_ieee_addr(void)
 {
-  struct id_addr *curr = id_addr_list;
-  while (curr->id != 0) {
-    if (memcmp(ieee_addr, curr->ieee_addr, IEEE_ADDR_LEN) == 0) {
-      node_id_burn(curr->id);
-      return 1;
+    struct id_addr *curr = id_addr_list;
+    while (curr->id != 0) {
+        if (memcmp(ieee_addr, curr->ieee_addr, IEEE_ADDR_LEN) == 0) {
+            node_id_burn(curr->id);
+            return 1;
+        }
+        curr++;
     }
-    curr++;
-  }
 
-  return 0;
+    return 0;
 }
 
 void deployment_print_id_info(void)
 {
-  PRINTF("[DEPLOYMENT] Node ID  : %"PRId16"\n", node_id);
-  PRINTF("[DEPLOYMENT] IEEE ADDR: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-         ieee_addr[0], ieee_addr[1],
-         ieee_addr[2], ieee_addr[3],
-         ieee_addr[4], ieee_addr[5],
-         ieee_addr[6], ieee_addr[7]);
+    PRINTF("[DEPLOYMENT] Node ID  : %"PRId16"\n", node_id);
+    PRINTF("[DEPLOYMENT] IEEE ADDR: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+            ieee_addr[0], ieee_addr[1],
+            ieee_addr[2], ieee_addr[3],
+            ieee_addr[4], ieee_addr[5],
+            ieee_addr[6], ieee_addr[7]);
 }
 
