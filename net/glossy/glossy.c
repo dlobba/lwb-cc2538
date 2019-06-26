@@ -1533,23 +1533,10 @@ uint8_t glossy_stop(void)
 
 /* ---------------------------------------------------------------------------------------------- */
 void glossy_debug_print(void) {
-
 #if GLOSSY_DEBUG
-  PRINTF("GSTATS| %"PRIu16", %"PRIu16", %"PRIu16", %"PRIu16
-         ", %"PRIu16", %"PRIu16", %"PRIu16", %"PRIu16
-         ", %"PRIu16"\n",
-          g_cntxt.stats.rx_timeout,
-          g_cntxt.stats.bad_length,
-          g_cntxt.stats.bad_i_header,
-          g_cntxt.stats.bad_crc,
-          g_cntxt.stats.bad_mac,
-          g_cntxt.stats.enc_dec_errs,
-          g_cntxt.stats.bad_g_header,
-          g_cntxt.stats.payload_mismatch,
-          g_cntxt.stats.rf_errs);
 
   if(g_cntxt.t_ref_updated) {
-    PRINTF("n_T_slots %"PRIu8", relay_cnt_t_ref %"PRIu8", T_slot %"PRIu64", t_ref_mtt %"PRIu64
+    PRINTF("[GLOSSY_FLOOD_DEBUG]\tn_T_slots %"PRIu8", relay_cnt_t_ref %"PRIu8", T_slot %"PRIu64", t_ref_ts %"PRIu64
            ", T_slot_estimated %"PRIu64"\n",
             g_cntxt.n_T_slots,
             g_cntxt.relay_cnt_t_ref,
@@ -1558,8 +1545,33 @@ void glossy_debug_print(void) {
             g_cntxt.T_slot_estimated);
 
   }
-#endif /* GLOSSY_DEBUG */
 
+#endif /* GLOSSY_DEBUG */
+}
+/*---------------------------------------------------------------------------*/
+void glossy_stats_print()
+{
+#if GLOSSY_DEBUG
+
+    printf("[GLOSSY_STATS_1]\t",
+            "n_rx %"PRIu16", n_tx %"PRIu16", "
+            "relay_cnt_first_rx %"PRIu8"\n",
+            g_cntxt.stats.rx_cnt, g_cntxt.stats.tx_cnt,
+            /* TODO: check this out */ g_context.stats.relay_cnt_first_rx);
+    printf("[GLOSSY_STATS_2]\t",
+            "n_bad_length %"PRIu16", n_bad_header %"   PRIu16", n_bad_payload %"       PRIu16"\n",
+            g_cntxt.stats.bad_length, g_cntxt.stats.bad_g_header, g_cntxt.stats.payload_mismatch);
+    printf("[GLOSSY_STATS_3]\t",
+            "rx_to %"       PRIu16"\n",
+            g_cntxt.stats.rx_timeout);
+    printf("[GLOSSY_STATS_4]\t",
+            "n_rx_err %"    PRIu16"\n",
+            g_cntxt.stats.rf_errs);
+    printf("[GLOSSY_STATS_5]\t",
+            "bad_crc %"   PRIu16"\n",
+            g_cntxt.stats.bad_crc);
+
+#endif /* GLOSSY_DEBUG */
 }
 
 /* ---------------------------------------------------------------------------------------------- */
