@@ -29,11 +29,12 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Author:  Kasun Hewage
- *          
+ *
  */
- 
+
 #include <stdio.h>
 #include <inttypes.h>
+#include <stdbool.h>
 
 #include "contiki.h"
 #include "dev/leds.h"
@@ -45,127 +46,191 @@
 
 #define INITIATOR_ID                    1
 
-#define GLOSSY_PERIOD                   (RTIMER_SECOND * 2)        /* 1 second */
-#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 33)       /* 30 ms*/
+/*---------------------------------------------------------------------------*/
+#define GLOSSY_PERIOD                   (RTIMER_SECOND / 10 * 5)      /* 500 milliseconds */
+//#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 33)        /* 30 ms*/
+#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 10)       /* 100 ms*/
 #define GLOSSY_T_GUARD                  (RTIMER_SECOND / 1000)     /* 1ms */
-#define GLOSSY_N_TX                     3
-
+#define GLOSSY_N_TX                     2
+/*---------------------------------------------------------------------------*/
+#define PAYLOAD_DATA_LEN                112
+/*---------------------------------------------------------------------------*/
 #define WAIT_UNTIL(time) \
 {\
-  rtimer_set(&g_timer, (time), 0, (rtimer_callback_t)glossy_thread, rt);\
-  PT_YIELD(&glossy_pt);\
+    rtimer_set(&g_timer, (time), 0, (rtimer_callback_t)glossy_thread, rt);\
+    PT_YIELD(&glossy_pt);\
 }
-
+/*---------------------------------------------------------------------------*/
 PROCESS(glossy_test, "Glossy test");
 AUTOSTART_PROCESSES(&glossy_test);
-
+/*---------------------------------------------------------------------------*/
 typedef struct {
-  uint32_t seq_no;
-  uint8_t  data[20];
+    uint32_t seq_no;
+    uint8_t  data[PAYLOAD_DATA_LEN];
 } glossy_data_t;
-
+/*---------------------------------------------------------------------------*/
 static struct pt      glossy_pt;
 static struct rtimer  g_timer;
 static glossy_data_t  glossy_payload;
+static glossy_data_t  previous_payload;
 static uint8_t        sync_state = 0;
 static uint16_t       bootstrap_cnt = 0;
 static uint16_t       pkt_cnt = 0;
 static uint16_t       miss_cnt = 0;
 
-static uint8_t aes_key[32];
+static rtimer_clock_t previous_t_ref;
 
-/*------------------------------------------------------------------------------------------------*/
+// static uint8_t aes_key[32];
+/*---------------------------------------------------------------------------*/
+static uint8_t password[]   = {0x0, 0x0, 0x4, 0x2};
+static size_t  password_len = 0;
+static bool    password_set = false;
+/*---------------------------------------------------------------------------*/
+static bool password_check(
+        const uint8_t *payload_data, const size_t payload_len,
+        const uint8_t *password, const size_t password_len);
+/*---------------------------------------------------------------------------*/
 PT_THREAD(glossy_thread(struct rtimer *rt))
 {
 
-  PT_BEGIN(&glossy_pt);
+    PT_BEGIN(&glossy_pt);
 
-  printf("Starting Glossy. Node ID %u\n", node_id);
+    printf("Starting Glossy. Node ID %u\n", node_id);
 
-  while (1) {
+    previous_t_ref     = 0;
 
-    if(node_id == INITIATOR_ID) {
+    while (1) {
 
-      glossy_start(node_id,
-                   (uint8_t*)&glossy_payload,
-                   sizeof(glossy_data_t),
-                   GLOSSY_N_TX,
-                   GLOSSY_WITH_SYNC);
+        if(node_id == INITIATOR_ID) {
 
-      WAIT_UNTIL(rt->time + GLOSSY_T_SLOT);
-      glossy_stop();
+            glossy_start(node_id,
+                    (uint8_t*)&glossy_payload,
+                    sizeof(glossy_data_t),
+                    GLOSSY_N_TX,
+                    GLOSSY_WITH_SYNC);
 
-      printf("n_rx %"PRIu8", f_relay_cnt %"PRIu8", sent_seq %"PRIu32"\n",
-              glossy_get_n_rx(),
-              glossy_get_relay_cnt_first_rx(),
-              glossy_payload.seq_no);
+            WAIT_UNTIL(rt->time + GLOSSY_T_SLOT);
+            glossy_stop();
 
-      glossy_debug_print();
+            printf("[GLOSSY_BROADCAST]\tn_rx %"PRIu8", f_relay_cnt %"PRIu8", "
+                    "sent_seq %"PRIu32", payload_len %u\n",
+                    glossy_get_n_rx(),
+                    glossy_get_relay_cnt_first_rx(),
+                    glossy_payload.seq_no,
+                    sizeof(glossy_data_t));
 
-      glossy_payload.seq_no++;
 
-      WAIT_UNTIL(rt->time - GLOSSY_T_SLOT + GLOSSY_PERIOD);
+            glossy_debug_print();
+            glossy_stats_print();
 
-    } else {
+            if (previous_payload.seq_no > 0 &&
+                    glossy_payload.seq_no == previous_payload.seq_no + 1) {
 
-      if(!sync_state) {
+                printf("[APP_DEBUG]\tEpoch_diff rtimer %"PRIu32"\n",
+                        glossy_get_t_ref() - previous_t_ref);
 
-        printf("BOOTSTRAP\r\n");
+                previous_t_ref = glossy_get_t_ref();
+            }
 
-        bootstrap_cnt++;
+            previous_payload = glossy_payload;
 
-        do {
-          glossy_start(GLOSSY_UNKNOWN_INITIATOR, (uint8_t*)&glossy_payload,
-                       GLOSSY_UNKNOWN_PAYLOAD_LEN,
-                       GLOSSY_N_TX, GLOSSY_WITH_SYNC);
-          WAIT_UNTIL(rt->time + GLOSSY_T_SLOT);
-          glossy_stop();
+            glossy_payload.seq_no++;
 
-        } while(!glossy_is_t_ref_updated());
+            WAIT_UNTIL(rt->time - GLOSSY_T_SLOT + GLOSSY_PERIOD);
 
-        /* synchronized! */
-        sync_state = 1;
+        } else {
 
-      } else {
+            if(!sync_state) {
 
-        /* already synchronized, receive a packet */
-        glossy_start(GLOSSY_UNKNOWN_INITIATOR, (uint8_t*)&glossy_payload,
-                     GLOSSY_UNKNOWN_PAYLOAD_LEN,
-                     GLOSSY_N_TX, GLOSSY_WITH_SYNC);
-        WAIT_UNTIL(rt->time + GLOSSY_T_SLOT + GLOSSY_T_GUARD);
-        glossy_stop();
-      }
+                printf("BOOTSTRAP\r\n");
 
-      /* at least one packet received? */
-      if(glossy_get_n_rx()) {
-        pkt_cnt++;
-      } else {
-        miss_cnt++;
-      }
+                bootstrap_cnt++;
 
-      /* has the reference time been updated? */
-      if(glossy_is_t_ref_updated()) {
-        /* sync received */
-      } else {
-        /* sync missed */
-        sync_state = 0;
-        continue;
-      }
+                do {
+                    glossy_start(GLOSSY_UNKNOWN_INITIATOR, (uint8_t*)&glossy_payload,
+                            GLOSSY_UNKNOWN_PAYLOAD_LEN,
+                            GLOSSY_N_TX, GLOSSY_WITH_SYNC);
+                    WAIT_UNTIL(rt->time + GLOSSY_T_SLOT);
+                    glossy_stop();
 
-      printf("rcvd_seq %"PRIu32"\n", glossy_payload.seq_no);
-      printf("n_rx %"PRIu8", f_relay_cnt %"PRIu8", rcvd %"PRIu16" missed %"PRIu16" bootpd %"PRIu16"\n",
-              glossy_get_n_rx(),
-              glossy_get_relay_cnt_first_rx(),
-              pkt_cnt,
-              miss_cnt,
-              bootstrap_cnt);
+                } while(!glossy_is_t_ref_updated());
 
-      WAIT_UNTIL(glossy_get_t_ref() + GLOSSY_PERIOD - GLOSSY_T_GUARD);
+                /* synchronized! */
+                sync_state = 1;
+
+            } else {
+
+                /* already synchronized, receive a packet */
+                glossy_start(GLOSSY_UNKNOWN_INITIATOR, (uint8_t*)&glossy_payload,
+                        GLOSSY_UNKNOWN_PAYLOAD_LEN,
+                        GLOSSY_N_TX, GLOSSY_WITH_SYNC);
+                WAIT_UNTIL(rt->time + GLOSSY_T_SLOT + GLOSSY_T_GUARD);
+                glossy_stop();
+            }
+
+            /* at least one packet received? */
+            if(glossy_get_n_rx()) {
+                pkt_cnt++;
+            } else {
+                miss_cnt++;
+            }
+
+            /* has the reference time been updated? */
+            if(glossy_is_t_ref_updated()) {
+                /* sync received */
+                printf("[APP_DEBUG]\tSynced\n");
+            } else {
+                /* sync missed */
+                printf("[APP_DEBUG]\tNot Synced\n");
+                sync_state = 0;
+                continue;
+            }
+
+            /*---------------------------------------------------------------*/
+            // Check packet integrity
+            /*---------------------------------------------------------------*/
+            if (password_set && !password_check(glossy_payload.data, PAYLOAD_DATA_LEN,
+                        password, password_len)) {
+
+                printf("[APP_DEBUG]\tReceived a corrupted packet.\n");
+
+            } else {
+
+                printf("[GLOSSY_PAYLOAD]\trcvd_seq %"PRIu32"\n", glossy_payload.seq_no);
+                printf("[APP_STATS]\tn_rx %"PRIu8", f_relay_cnt %"PRIu8", "
+                        "rcvd %"PRIu16", missed %"PRIu16", bootpd %"PRIu16"\n",
+                        glossy_get_n_rx(),
+                        glossy_get_relay_cnt_first_rx(),
+                        pkt_cnt,
+                        miss_cnt,
+                        bootstrap_cnt);
+
+                // print info to compute stats
+                glossy_debug_print();
+                glossy_stats_print();
+
+                // print difference between the reference time among two
+                // consecutive packets, ignore the first packet
+                if (previous_payload.seq_no > 0 &&
+                    glossy_payload.seq_no == previous_payload.seq_no + 1) {
+
+                    printf("[APP_DEBUG]\tEpoch_diff rtimer %"PRIu32"\n",
+                            glossy_get_t_ref() - previous_t_ref);
+
+                    previous_t_ref = glossy_get_t_ref();
+                }
+
+                previous_payload = glossy_payload;
+
+            }
+            /*---------------------------------------------------------------*/
+
+            WAIT_UNTIL(glossy_get_t_ref() + GLOSSY_PERIOD - GLOSSY_T_GUARD);
+        }
+
     }
 
-  }
-
-  PT_END(&glossy_pt);
+    PT_END(&glossy_pt);
 }
 
 /*------------------------------------------------------------------------------------------------*/
@@ -173,28 +238,60 @@ PROCESS_THREAD(glossy_test, ev, data)
 {
     PROCESS_BEGIN();
 
+
     deployment_load_ieee_addr();
     deployment_set_node_id_ieee_addr();
     deployment_print_id_info();
 
     glossy_init();
 
-    aes_key[0] = 0xa5;  aes_key[1] = 0x86;
-    aes_key[2] = 0xe5;  aes_key[3] = 0x1a;
-    aes_key[4] = 0x96;  aes_key[5] = 0xfe;
-    aes_key[6] = 0x56;  aes_key[7] = 0xaa;
-    aes_key[8] = 0x7f;  aes_key[9] = 0xa3;
-    aes_key[10] = 0xb4; aes_key[11] = 0x70;
-    aes_key[12] = 0xee; aes_key[13] = 0xe6;
-    aes_key[14] = 0x0b; aes_key[15] = 0x04;
-    glossy_set_enc_key(aes_key, GLOSSY_AES_128_KEY_SIZE);
+    glossy_payload.seq_no  = 0;
 
-    glossy_set_enc(GLOSSY_ENC_ON);
+    // DON'T SET ENCODING
+    /*
+       aes_key[0] = 0xa5;  aes_key[1] = 0x86;
+       aes_key[2] = 0xe5;  aes_key[3] = 0x1a;
+       aes_key[4] = 0x96;  aes_key[5] = 0xfe;
+       aes_key[6] = 0x56;  aes_key[7] = 0xaa;
+       aes_key[8] = 0x7f;  aes_key[9] = 0xa3;
+       aes_key[10] = 0xb4; aes_key[11] = 0x70;
+       aes_key[12] = 0xee; aes_key[13] = 0xe6;
+       aes_key[14] = 0x0b; aes_key[15] = 0x04;
+       glossy_set_enc_key(aes_key, GLOSSY_AES_128_KEY_SIZE);
 
-    glossy_payload.seq_no = 0;
+       glossy_set_enc(GLOSSY_ENC_ON);
+       */
 
+    // Add a password to the data payload to check for packet integrity
+    password_len = sizeof(password) / sizeof(password_len);
+    if (password_len > PAYLOAD_DATA_LEN) {
+        printf("Password too large to be embedded within the app payload!\n");
+        printf("Password not set!\n");
+        password_set = false;
+    } else {
+        memcpy(glossy_payload.data, password, password_len * sizeof(uint8_t));
+        password_set = true;
+    }
+    previous_payload = glossy_payload;
+
+    /*-----------------------------------------------------------------------*/
     rtimer_set(&g_timer, RTIMER_NOW() + RTIMER_SECOND * 2, 0, (rtimer_callback_t)glossy_thread, NULL);
 
     PROCESS_END();
 }
-
+/*---------------------------------------------------------------------------*/
+    static bool
+password_check(const uint8_t *payload_data, const size_t payload_len,
+        const uint8_t *password, const size_t password_len)
+{
+    size_t i = 0;
+    if (payload_len < password_len) {
+        return false;
+    }
+    for (; i < password_len; i++) {
+        if (payload_data[i] != password[i]) {
+            return false;
+        }
+    }
+    return true;
+}
