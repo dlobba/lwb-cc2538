@@ -242,6 +242,11 @@ uint32_t glossy_get_last_rf_error(void);
  */
 void glossy_debug_print(void);
 
+/**
+ * @brief Print Glossy stats information.
+ */
+void glossy_stats_print();
+
 
 #endif /* GLOSSY_H_ */
 
