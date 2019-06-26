@@ -1,1 +1,7 @@
 tags
+*.map
+*.bin
+*.elf
+*.hex
+*.zoul
+**/obj_*/
