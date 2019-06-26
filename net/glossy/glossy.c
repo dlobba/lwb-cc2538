@@ -29,9 +29,9 @@
  * OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * Author:  Kasun Hewage
- *          
+ *
  */
- 
+
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdio.h>
