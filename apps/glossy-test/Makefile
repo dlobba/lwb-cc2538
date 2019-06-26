@@ -1,4 +1,4 @@
-CONTIKI_PROJECT = glossy-test
+CONTIKI_PROJECT = glossy_test
 CONTIKI_WITH_RIME = 1
 
 DEFINES += PROJECT_CONF_H=\"project-conf.h\"
