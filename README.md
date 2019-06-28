@@ -77,3 +77,101 @@ Primary IEEE Address: 00:12:4B:00:06:0D:B5:F0
 ## Current status
 
 LWB-CC2538 is implemented as a part of a research project. Though the implementation has been extensively tested, there could be bugs in the code. Therefore, neither I guarantee a reliable operation nor encourage you to use this in production systems. Nonetheless, you are very welcome to try the implementation and modify it according to your needs.
+
+
+## Deployment on the Zoul platform
+
+Here it is detailed the process required for flashing the code
+(the **glossy-test** app is considered) for the Zoul platform.
+
+This guide consider the use of Debian 9 unstable (Buster).
+
+This overview describes the flasing process only, it is
+therefore assumed that the correct condifuration for the
+node deployment, or any other change, to be already performed.
+
+![An image of a Zoul platform device.](./doc/img/zoul.jpg)
+
+### Step 0: Install the required libraries
+
+To etablish a connection with the device, in addition to the
+default compiling toolchain previously installed, it is
+required to install the following tools:
+
+* `python-serial`
+
+Available from the repository.
+
+In addition, the tool used by Contiki to connect to the
+device seems to be compiled using a 32bit arch, hence by default
+it won't work on 64bit architecture.
+
+It is therefore to add the i386 architecture to the repository
+and install the compiling toolchain for it. Note that this step
+effectively provide a side way to install the `ia32-libs` which
+were previously used for the purpose and are no longer available.
+
+With root privileges:
+
+* Add the i386 architecture to the repository:
+
+  `dpkg --add-architecture i386`
+
+* update the repository with `apt-get update`
+
+* install the latest version of libstdc, libgcc, zlib, libncurses:
+
+  `apt install libstdc++6:i386 libgcc1:i386 zlib1g:i386 libncurses5:i386`
+
+
+### Step 1: Compiling the code
+
+From the project root folder, go to `apps/glossy-test`.
+The default target, defined in `Makefile.target`, used for the compilation process is compatible
+with the considered platform:
+
+```text
+TARGET=zoul
+BOARD=firefly
+```
+
+Start compiling the code by issuing the `make` comand on the
+`glossy_test` folder.
+
+### Step 2: Upload the binary to the device
+
+Insert the device to the usb port, and note down the corresponding
+tty port (*e.g.* /dev/ttyUSB0 )
+
+Issue the upload command through make:
+
+`make glossy_test.upload`
+
+### Step 3: Connect to the device serial port
+
+To view the information printed by the device, if any,
+use the login command though make, defining the usb port to
+which the device is attached:
+
+`make login /dev/tty/USB0`
+
+The output of the program should be printed to the screen, *e.g.*:
+
+```text
+../../contiki/tools/sky/serialdump-linux -b115200 /dev/ttyUSB0
+connecting to /dev/ttyUSB0 (115200) [OK]
+Starting Glossy. Node ID 0
+BOOTSTRAP
+[APP_DEBUG]	Synced
+[GLOSSY_PAYLOAD]	rcvd_seq 0
+[APP_STATS]	n_rx 0, f_relay_cnt 0, rcvd 0, missed 1, bootpd 1
+[APP_DEBUG]	Synced
+[GLOSSY_PAYLOAD]	rcvd_seq 0
+[APP_STATS]	n_rx 0, f_relay_cnt 0, rcvd 0, missed 2, bootpd 1
+[APP_DEBUG]	Synced
+[GLOSSY_PAYLOAD]	rcvd_seq 0
+[APP_STATS]	n_rx 0, f_relay_cnt 0, rcvd 0, missed 3, bootpd 1
+[APP_DEBUG]	Synced
+[GLOSSY_PAYLOAD]	rcvd_seq 0
+[APP_STATS]	n_rx 0, f_relay_cnt 0, rcvd 0, missed 4, bootpd 1
+```
