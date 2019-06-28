@@ -82,12 +82,12 @@ LWB-CC2538 is implemented as a part of a research project. Though the implementa
 ## Deployment on the Zoul platform
 
 Here it is detailed the process required for flashing the code
-(the **glossy-test** app is considered) for the Zoul platform.
+(the **glossy-test** app is considered) to the Zoul platform.
 
-This guide consider the use of Debian 9 unstable (Buster).
+This guide considers the use of Debian 9 unstable (Buster).
 
-This overview describes the flasing process only, it is
-therefore assumed that the correct condifuration for the
+This overview describes the flashing process only, it is
+therefore assumed that the correct configuration for the
 node deployment, or any other change, to be already performed.
 
 ![An image of a Zoul platform device.](./doc/img/zoul.jpg)
@@ -95,7 +95,7 @@ node deployment, or any other change, to be already performed.
 ### Step 0: Install the required libraries
 
 To etablish a connection with the device, in addition to the
-default compiling toolchain previously installed, it is
+default compiling toolchain [previously installed](#setting-up-the-tool-chain-and-source), it is
 required to install the following tools:
 
 * `python-serial`
@@ -104,12 +104,12 @@ Available from the repository.
 
 In addition, the tool used by Contiki to connect to the
 device seems to be compiled using a 32bit arch, hence by default
-it won't work on 64bit architecture.
+it won't work on 64bit architectures.
 
-It is therefore to add the i386 architecture to the repository
+It is therefore required to add the i386 architecture to the repository
 and install the compiling toolchain for it. Note that this step
 effectively provide a side way to install the `ia32-libs` which
-were previously used for the purpose and are no longer available.
+was previously used for the purpose and is no longer available.
 
 With root privileges:
 
@@ -150,7 +150,7 @@ Issue the upload command through make:
 ### Step 3: Connect to the device serial port
 
 To view the information printed by the device, if any,
-use the login command though make, defining the usb port to
+use the login command through make, defining the usb port to
 which the device is attached:
 
 `make login /dev/tty/USB0`
