@@ -1553,21 +1553,21 @@ void glossy_stats_print()
 {
 #if GLOSSY_DEBUG
 
-    printf("[GLOSSY_STATS_1]\t",
+    printf("[GLOSSY_STATS_1]\t"
             "n_rx %"PRIu16", n_tx %"PRIu16", "
             "relay_cnt_first_rx %"PRIu8"\n",
             g_cntxt.stats.rx_cnt, g_cntxt.stats.tx_cnt,
-            /* TODO: check this out */ g_context.stats.relay_cnt_first_rx);
-    printf("[GLOSSY_STATS_2]\t",
+            /* TODO: check this out */ g_cntxt.relay_cnt_t_ref);
+    printf("[GLOSSY_STATS_2]\t"
             "n_bad_length %"PRIu16", n_bad_header %"   PRIu16", n_bad_payload %"       PRIu16"\n",
             g_cntxt.stats.bad_length, g_cntxt.stats.bad_g_header, g_cntxt.stats.payload_mismatch);
-    printf("[GLOSSY_STATS_3]\t",
+    printf("[GLOSSY_STATS_3]\t"
             "rx_to %"       PRIu16"\n",
             g_cntxt.stats.rx_timeout);
-    printf("[GLOSSY_STATS_4]\t",
+    printf("[GLOSSY_STATS_4]\t"
             "n_rx_err %"    PRIu16"\n",
             g_cntxt.stats.rf_errs);
-    printf("[GLOSSY_STATS_5]\t",
+    printf("[GLOSSY_STATS_5]\t"
             "bad_crc %"   PRIu16"\n",
             g_cntxt.stats.bad_crc);
 

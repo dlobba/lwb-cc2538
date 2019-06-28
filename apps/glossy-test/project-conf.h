@@ -2,6 +2,9 @@
 #ifndef PROJECT_CONF_H_
 #define PROJECT_CONF_H_
 
+// enable debug on GLOSSY
+#define GLOSSY_DEBUG                  1
+
 ///< Enable energy estimation
 #define ENERGEST_CONF_ON              1
 ///< system clock runs at 32 MHz
@@ -14,6 +17,8 @@
 #define CC2538_RF_CONF_CHANNEL        26
 
 #define COFFEE_CONF_SIZE              0
+
+#define LPM_CONF_MAX_PM               LPM_PM0
 
 #endif /* PROJECT_CONF_H_ */
 
