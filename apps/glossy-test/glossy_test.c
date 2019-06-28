@@ -44,7 +44,7 @@
 #include "deployment.h"
 
 
-#define INITIATOR_ID                    1
+#define INITIATOR_ID                    11
 
 /*---------------------------------------------------------------------------*/
 #define GLOSSY_PERIOD                   (RTIMER_SECOND / 10 * 5)      /* 500 milliseconds */
@@ -243,7 +243,11 @@ PROCESS_THREAD(glossy_test, ev, data)
     deployment_set_node_id_ieee_addr();
     deployment_print_id_info();
 
-    glossy_init();
+    if (glossy_init() == GLOSSY_STATUS_FAIL) {
+        printf("Glossy failed\n");
+        while(1) {}
+    }
+    printf("Glossy successfully initialised\n");
 
     glossy_payload.seq_no  = 0;
 
