@@ -119,6 +119,7 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
                     glossy_payload.seq_no,
                     sizeof(glossy_data_t));
 
+            printf("[GLOSSY_PAYLOAD]\trcvd_seq %"PRIu32"\n", glossy_payload.seq_no);
 
             glossy_debug_print();
             glossy_stats_print();
