@@ -1536,7 +1536,7 @@ void glossy_debug_print(void) {
 #if GLOSSY_DEBUG
 
   if(g_cntxt.t_ref_updated) {
-    PRINTF("[GLOSSY_FLOOD_DEBUG]\tn_T_slots %"PRIu8", relay_cnt_t_ref %"PRIu8", T_slot %"PRIu64", t_ref_ts %"PRIu64
+    PRINTF("[GLOSSY_FLOOD_DEBUG]\tn_T_slots %"PRIu8", relay_cnt_t_ref %"PRIu8", T_slot %"PRIu64", tref_ts %"PRIu64
            ", T_slot_estimated %"PRIu64"\n",
             g_cntxt.n_T_slots,
             g_cntxt.relay_cnt_t_ref,
@@ -1566,10 +1566,11 @@ void glossy_stats_print()
             g_cntxt.stats.rx_timeout);
     printf("[GLOSSY_STATS_4]\t"
             "n_rx_err %"    PRIu16"\n",
-            g_cntxt.stats.rf_errs);
+            // consider bad crc events and rf errors as rx errors
+            g_cntxt.stats.rf_errs + g_cntxt.stats.bad_crc);
     printf("[GLOSSY_STATS_5]\t"
-            "bad_crc %"   PRIu16"\n",
-            g_cntxt.stats.bad_crc);
+            "rf_err "       PRIu16", bad_crc %"       PRIu16"\n",
+            g_cntxt.stats.rf_errs, g_cntxt.stats.bad_crc);
 
 #endif /* GLOSSY_DEBUG */
 }
