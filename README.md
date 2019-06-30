@@ -175,3 +175,8 @@ BOOTSTRAP
 [GLOSSY_PAYLOAD]	rcvd_seq 0
 [APP_STATS]	n_rx 0, f_relay_cnt 0, rcvd 0, missed 4, bootpd 1
 ```
+
+
+## Reference and Bibliography
+
+* [CC2538 System-on-Chip Solution for 2.4-GHz IEEE 802.15.4 and ZigBee®/ZigBee IP® Applications Version C](http://www.ti.com/lit/ug/swru319c/swru319c.pdf)
