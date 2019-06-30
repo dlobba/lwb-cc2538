@@ -1569,7 +1569,7 @@ void glossy_stats_print()
             // consider bad crc events and rf errors as rx errors
             g_cntxt.stats.rf_errs + g_cntxt.stats.bad_crc);
     printf("[GLOSSY_STATS_5]\t"
-            "rf_err "       PRIu16", bad_crc %"       PRIu16"\n",
+            "rf_err %"      PRIu16", bad_crc %"       PRIu16"\n",
             g_cntxt.stats.rf_errs, g_cntxt.stats.bad_crc);
 
 #endif /* GLOSSY_DEBUG */
