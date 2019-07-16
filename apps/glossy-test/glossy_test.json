@@ -1,0 +1,12 @@
+{
+    "name" : "Glossy test on Firefly",
+    "description" : "Execute the Firefly implementation of Glossy",
+    "ts_init" : "asap",
+    "duration" : 600,
+    "image" : {
+        "hardware" : "firefly",
+        "file" : "../glossy_firefly/apps/glossy-test/glossy_test.bin",
+        "programAddress": "0x00200000",
+        "target" : [1, 2, 4, 5, 10, 11, 12, 13, 14, 15, 16, 17]
+    }
+}
