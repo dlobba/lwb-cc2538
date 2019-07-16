@@ -5,3 +5,4 @@ tags
 *.hex
 *.zoul
 **/obj_*/
+__pycache__
