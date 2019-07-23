@@ -36,16 +36,30 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include "contiki.h"
 #include "dev/leds.h"
+
+#include "sys/autostart.h"
 #include "sys/rtimer.h"
+#include "sys/etimer.h"
+#include "serial-line.h"
 
 #include "glossy.h"
 #include "deployment.h"
-
-
-#define INITIATOR_ID                    11
-
+/*---------------------------------------------------------------------------*/
+// TESTBED NODES
+/*---------------------------------------------------------------------------*/
+//#define INITIATOR_ID                    11
+//#define INITIATOR_ID                    12
+//#define INITIATOR_ID                    10
+//#define INITIATOR_ID                    13
+//#define INITIATOR_ID                    14
+//#define INITIATOR_ID                    15
+//#define INITIATOR_ID                    16
+//#define INITIATOR_ID                    17
+//#define INITIATOR_ID                    2
+//#define INITIATOR_ID                    1
+//#define INITIATOR_ID                    4
+//#define INITIATOR_ID                    5
 /*---------------------------------------------------------------------------*/
 #define GLOSSY_PERIOD                   (RTIMER_SECOND / 10 * 5)      /* 500 milliseconds */
 //#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 33)        /* 30 ms*/
@@ -53,16 +67,13 @@
 #define GLOSSY_T_GUARD                  (RTIMER_SECOND / 1000)     /* 1ms */
 #define GLOSSY_N_TX                     2
 /*---------------------------------------------------------------------------*/
-#define PAYLOAD_DATA_LEN                112
+#define PAYLOAD_DATA_LEN                109
 /*---------------------------------------------------------------------------*/
 #define WAIT_UNTIL(time) \
 {\
     rtimer_set(&g_timer, (time), 0, (rtimer_callback_t)glossy_thread, rt);\
     PT_YIELD(&glossy_pt);\
 }
-/*---------------------------------------------------------------------------*/
-PROCESS(glossy_test, "Glossy test");
-AUTOSTART_PROCESSES(&glossy_test);
 /*---------------------------------------------------------------------------*/
 typedef struct {
     uint32_t seq_no;
@@ -73,15 +84,28 @@ static struct pt      glossy_pt;
 static struct rtimer  g_timer;
 static glossy_data_t  glossy_payload;
 static glossy_data_t  previous_payload;
-static uint8_t        sync_state = 0;
+static uint8_t        bootstrapped = 0;
 static uint16_t       bootstrap_cnt = 0;
 static uint16_t       pkt_cnt = 0;
 static uint16_t       miss_cnt = 0;
 
 static rtimer_clock_t previous_t_ref;
+static rtimer_clock_t t_ref;
 
 // static uint8_t aes_key[32];
 /*---------------------------------------------------------------------------*/
+#define SKIP_SERIAL_INPUT                   0
+PROCESS(serial_process, "Serial process");
+PROCESS(glossy_test, "Glossy test");
+
+#if SKIP_SERIAL_INPUT
+AUTOSTART_PROCESSES(&glossy_test);
+#else
+#define INITIATOR_ID                        0
+AUTOSTART_PROCESSES(&serial_process);
+#endif /* SKIP_SERIAL_INPUT */
+/*---------------------------------------------------------------------------*/
+static unsigned short int initiator_id = INITIATOR_ID;
 static uint8_t password[]   = {0x0, 0x0, 0x4, 0x2};
 static size_t  password_len = 0;
 static bool    password_set = false;
@@ -95,13 +119,13 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
 
     PT_BEGIN(&glossy_pt);
 
-    printf("Starting Glossy. Node ID %u\n", node_id);
+    printf("Starting Glossy. Node ID %hu\n", node_id);
 
     previous_t_ref     = 0;
 
     while (1) {
 
-        if(node_id == INITIATOR_ID) {
+        if(node_id == initiator_id) {
 
             glossy_start(node_id,
                     (uint8_t*)&glossy_payload,
@@ -112,14 +136,17 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
             WAIT_UNTIL(rt->time + GLOSSY_T_SLOT);
             glossy_stop();
 
-            printf("[GLOSSY_BROADCAST]\tn_rx %"PRIu8", f_relay_cnt %"PRIu8", "
-                    "sent_seq %"PRIu32", payload_len %u\n",
-                    glossy_get_n_rx(),
-                    glossy_get_relay_cnt_first_rx(),
+            printf("[GLOSSY_BROADCAST]\tsent_seq %"PRIu32", payload_len %u\n",
                     glossy_payload.seq_no,
                     sizeof(glossy_data_t));
-
             printf("[GLOSSY_PAYLOAD]\trcvd_seq %"PRIu32"\n", glossy_payload.seq_no);
+            printf("[APP_STATS]\tn_rx %"PRIu8", n_tx %"PRIu8", f_relay_cnt %"PRIu8", "
+                    "rcvd %"PRIu16", missed %"PRIu16", bootpd %"PRIu16"\n",
+                    glossy_get_n_rx(), glossy_get_n_tx(),
+                    glossy_get_relay_cnt_first_rx(),
+                    pkt_cnt,
+                    miss_cnt,
+                    bootstrap_cnt);
 
             glossy_debug_print();
             glossy_stats_print();
@@ -130,8 +157,8 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
                 printf("[APP_DEBUG]\tEpoch_diff rtimer %"PRIu32"\n",
                         glossy_get_t_ref() - previous_t_ref);
 
-                previous_t_ref = glossy_get_t_ref();
             }
+            previous_t_ref = glossy_get_t_ref();
 
             previous_payload = glossy_payload;
 
@@ -141,7 +168,7 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
 
         } else {
 
-            if(!sync_state) {
+            if(!bootstrapped) {
 
                 printf("BOOTSTRAP\r\n");
 
@@ -157,7 +184,7 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
                 } while(!glossy_is_t_ref_updated());
 
                 /* synchronized! */
-                sync_state = 1;
+                bootstrapped = 1;
 
             } else {
 
@@ -180,10 +207,11 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
             if(glossy_is_t_ref_updated()) {
                 /* sync received */
                 printf("[APP_DEBUG]\tSynced\n");
+                t_ref = glossy_get_t_ref() + GLOSSY_PERIOD;
             } else {
                 /* sync missed */
                 printf("[APP_DEBUG]\tNot Synced\n");
-                sync_state = 0;
+                t_ref += GLOSSY_PERIOD;
                 continue;
             }
 
@@ -198,9 +226,9 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
             } else {
 
                 printf("[GLOSSY_PAYLOAD]\trcvd_seq %"PRIu32"\n", glossy_payload.seq_no);
-                printf("[APP_STATS]\tn_rx %"PRIu8", f_relay_cnt %"PRIu8", "
+                printf("[APP_STATS]\tn_rx %"PRIu8", n_tx %"PRIu8", f_relay_cnt %"PRIu8", "
                         "rcvd %"PRIu16", missed %"PRIu16", bootpd %"PRIu16"\n",
-                        glossy_get_n_rx(),
+                        glossy_get_n_rx(), glossy_get_n_tx(),
                         glossy_get_relay_cnt_first_rx(),
                         pkt_cnt,
                         miss_cnt,
@@ -218,23 +246,23 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
                     printf("[APP_DEBUG]\tEpoch_diff rtimer %"PRIu32"\n",
                             glossy_get_t_ref() - previous_t_ref);
 
-                    previous_t_ref = glossy_get_t_ref();
                 }
+                previous_t_ref = glossy_get_t_ref();
 
                 previous_payload = glossy_payload;
 
             }
             /*---------------------------------------------------------------*/
 
-            WAIT_UNTIL(glossy_get_t_ref() + GLOSSY_PERIOD - GLOSSY_T_GUARD);
-        }
+            WAIT_UNTIL(t_ref - GLOSSY_T_GUARD);
 
+        }
     }
 
     PT_END(&glossy_pt);
 }
-
 /*------------------------------------------------------------------------------------------------*/
+
 PROCESS_THREAD(glossy_test, ev, data)
 {
     PROCESS_BEGIN();
@@ -249,8 +277,6 @@ PROCESS_THREAD(glossy_test, ev, data)
         while(1) {}
     }
     printf("Glossy successfully initialised\n");
-
-    glossy_payload.seq_no  = 0;
 
     // DON'T SET ENCODING
     /*
@@ -268,6 +294,7 @@ PROCESS_THREAD(glossy_test, ev, data)
        */
 
     // Add a password to the data payload to check for packet integrity
+    glossy_payload.seq_no  = 0;
     password_len = sizeof(password) / sizeof(password_len);
     if (password_len > PAYLOAD_DATA_LEN) {
         printf("Password too large to be embedded within the app payload!\n");
@@ -280,12 +307,51 @@ PROCESS_THREAD(glossy_test, ev, data)
     previous_payload = glossy_payload;
 
     /*-----------------------------------------------------------------------*/
-    rtimer_set(&g_timer, RTIMER_NOW() + RTIMER_SECOND * 2, 0, (rtimer_callback_t)glossy_thread, NULL);
-
+    // make the initiator wait a bit longer
+    if(node_id == initiator_id) {
+        rtimer_set(&g_timer, RTIMER_NOW() + RTIMER_SECOND * 10, 0,
+                (rtimer_callback_t)glossy_thread, NULL);
+    } else {
+        rtimer_set(&g_timer, RTIMER_NOW() + RTIMER_SECOND * 2, 0,
+                (rtimer_callback_t)glossy_thread, NULL);
+    }
+    /*-----------------------------------------------------------------------*/
     PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
-    static bool
+/*                          SERIAL PROCESS                                   */
+/*---------------------------------------------------------------------------*/
+/* Keep on reading on the serial upon receiving information on who is the
+ * initiator.
+ */
+#define INIT_LABEL          "INITIATOR"
+#define INIT_FORMAT         "INITIATOR %hu\n"
+PROCESS_THREAD(serial_process, ev, data)
+{
+    PROCESS_BEGIN();
+
+    while (1) {
+        PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
+
+        if (strncmp((char*)data, INIT_LABEL, strlen(INIT_LABEL)) == 0) {
+            int nitems = sscanf((char*) data, INIT_FORMAT, &initiator_id);
+            if (nitems > 0) {
+                // initiator_id has been set, continue with
+                // the main glossy process
+                break;
+            }
+        } else {
+            printf("error! unrecognized '%s'\n", (char*)data);
+        }
+    }
+
+    printf("Initiator ID: %hu\n", initiator_id);
+
+    process_start(&glossy_test, NULL);
+    PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+static bool
 password_check(const uint8_t *payload_data, const size_t payload_len,
         const uint8_t *password, const size_t password_len)
 {
