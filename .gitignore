@@ -7,4 +7,5 @@ tags
 **/obj_*/
 *.log
 *.pdf
+*simulations*
 __pycache__
