@@ -4,8 +4,6 @@ import logging
 
 from functools import reduce
 
-import dao
-
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 logging.getLogger(__name__).setLevel(level=logging.DEBUG)
@@ -47,8 +45,7 @@ N_RX_TIMEOUT_ATTR  = "rx_to"
 REL_CNT_FIRST_RX_ATTR      = "relay_cnt_first_rx"
 N_SYNC_ATTR    = "n_sync"
 N_NO_SYNC_ATTR = "n_nosync"
-RTIMER_EPOCHS_ATTR = "epochs_rtimer"
-DTU_EPOCHS_ATTR    = "epochs_dtu"
+RTIMER_EPOCH_ATTR = "epoch_rtimer"
 BAD_LEN_ATTR       = "n_bad_length"
 BAD_HEADER_ATTR    = "n_bad_header"
 BAD_PAYLOAD_ATTR   = "n_bad_payload"
@@ -89,8 +86,7 @@ TESTBED_RPI_PREFIX = r"\[\d+-\d+-\d+\s+\d+:\d+:\d+,\d+\]"\
 
 GLOSSY_LOG = r"^\[\s*([\w0-9-_]+)\s*\]\s*(.*)"
 GLOSSY_RELAY_CNT = r"^\[GLOSSY_INFO\]\s*Relay_cnt:\s*(\d+)"
-# GLOSSY_INIT_MSG = r"Glossy successfully initialised"
-GLOSSY_INIT_MSG = r"Starting Glossy. Node ID \d+"
+GLOSSY_INIT_MSG = r"Glossy successfully initialised"
 
 # ERROR REGEX
 BROKEN_LABEL = r"^\[[^\]]*$"
@@ -105,7 +101,7 @@ FILTER_RULES = [
         r"^\[GLOSSY_FLOOD_DEBUG\]",\
         r"^\[GLOSSY_STATS(?:_\d+)\]",\
         r"^\[GLOSSY_BROADCAST\]",\
-        r"^\[APP_STATS_\d+\]",\
+        r"^\[APP_STATS\]",\
         r"^\[APP_DEBUG\]",\
         GLOSSY_RELAY_CNT
 ]
@@ -271,19 +267,31 @@ def get_log_data(filename, testbed=True):
             elif label == "GLOSSY_BROADCAST":
 
                 try:
-                    match = re.match(r"\s*n_rx\s+\d+,\s+f_relay_cnt\s+\d+,\s+sent_seq\s+(\d+),\s+payload_len\s+\d+",\
+                    match = re.match(r"\s*sent_seq\s+(\d+),\s+payload_len\s+\d+",\
                             content)
                     pkt_seqno = int(match.group(1))
-
-                    # TODO: remove this eventually
-                    # make the broadcaster automatically received its data
-                    flood_stats[node_id][pkt_seqno] = {FLOOD_ENTRY : pkt_seqno}
-                    current_flood[node_id] = pkt_seqno
-                    # end - remove
 
                 except (ValueError, AttributeError):
                     raise ValueError("Invalid regexp for capturing pkt seqno within GLOSSY_BROADCAST")
                 flood_inits[node_id].append(pkt_seqno)
+
+            elif label == "APP_STATS":
+                try:
+                    match = re.match(
+                        r"\s*n_rx\s+(\d+)(?:,)\s*n_tx\s+(\d+)(?:,)",\
+                        content)
+                    if not match:
+                        logger.debug("No matching n_tx, t_rx in APP_STATS. Dropping log: {}".format(content))
+                    else:
+                        nrx, ntx = match.groups()
+                        nrx = int(nrx)
+                        ntx = int(ntx)
+                        pkt_seqno = current_flood[node_id]
+                        flood_stats[node_id][pkt_seqno][N_TX_ATTR] = ntx
+                        flood_stats[node_id][pkt_seqno][N_RX_ATTR] = nrx
+
+                except (ValueError, AttributeError):
+                    raise ValueError("Invalid regexp for capturing n_tx, t_rx within APP_STATS")
 
             elif label == "APP_DEBUG":
 
@@ -300,11 +308,12 @@ def get_log_data(filename, testbed=True):
 
                     match = re.match("Epoch_diff\s+rtimer\s+(\d+)",\
                             strip_content)
-                    rtimer = match.group(1)
-                    rtimer = int(rtimer)
-                    dtu    = 0
-                    app_stats[node_id][RTIMER_EPOCHS_ATTR].append(rtimer)
-                    app_stats[node_id][DTU_EPOCHS_ATTR].append(dtu)
+                    if not match:
+                        logger.debug("No matching epoch diff info. Dropping log: {}".format(strip_content))
+                    else:
+                        rtimer = match.group(1)
+                        rtimer = int(rtimer)
+                        app_stats[node_id][RTIMER_EPOCH_ATTR].append(rtimer)
 
                 else:
                     logger.debug("Unmanaged {} tag information: {}"\
@@ -326,7 +335,7 @@ def get_log_data(filename, testbed=True):
             glossy_stats[node_id] = {}
             app_stats[node_id]    = {\
                     N_SYNC_ATTR: 0, N_NO_SYNC_ATTR: 0,\
-                    RTIMER_EPOCHS_ATTR: [], DTU_EPOCHS_ATTR: []}
+                    RTIMER_EPOCH_ATTR: []}
 
     # --------------------------------------------------------------------------
     # DATA CHECK
