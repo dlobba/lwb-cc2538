@@ -5,8 +5,9 @@
     "duration" : 600,
     "image" : {
         "hardware" : "firefly",
-        "file" : "../glossy_firefly/apps/glossy-test/glossy_test.bin",
+        "file" : "./glossy_test.bin",
         "programAddress": "0x00200000",
         "target" : [1, 2, 4, 5, 10, 11, 12, 13, 14, 15, 16, 17]
-    }
+    },
+    "python_script" : "./serialcom_script.py"
 }
