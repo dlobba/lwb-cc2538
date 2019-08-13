@@ -6,35 +6,52 @@ import json
 import copy
 import datetime
 
+import itertools
+import subprocess
+import git        # pick last commit hash
+
 import shutil
 from random import randint
 
 from jinja2 import Template
 
 from params import PARAMS
-from simgen_templates import SERIALCOM_TEMPLATE, TESTBED_TEMPLATE
+from simgen_templates import TESTBED_TEMPLATE
 
+
+PRJ_TX_POWER = "tx_power"
+PRJ_PAYLOAD = "payload"
+PRJ_INITIATOR = "initiator"
+
+# -----------------------------------------------------------------------------
+# Extract parameters from from the params.py to generate simulations
 
 ALL_NODES = set(PARAMS["nodes"])
 INITS     = set(PARAMS["initiator"])
 SIM_DURATION = int(PARAMS["duration"])
 TS_INIT   = PARAMS["ts_init"]
+PAYLOADS  = PARAMS["payloads"]
+POWERS   = PARAMS["powers"]
 
 SIMULATION_OFFSET = 60                  # Time used to separate two consecutive simulations
+
+# -----------------------------------------------------------------------------
+# Compute paths to required files and directories
 
 BASE_PATH = os.path.dirname(sys.argv[0])
 APP_DIR   = os.path.join(os.path.abspath(BASE_PATH), PARAMS["app_folder"])
 APP_BINARY= os.path.abspath(os.path.join(APP_DIR, "glossy_test.bin"))
 APP_SOURCE= os.path.abspath(os.path.join(APP_DIR, "glossy_test.c"))
+APP_PRJCONF = os.path.abspath(os.path.join(APP_DIR, "project-conf.h"))
 SIMS_DIR  = os.path.abspath(os.path.join(BASE_PATH, PARAMS["sims_dir"]))
 
 # -----------------------------------------------------------------------------
 # SINGLE SIMULATION VARIABLES
 # -----------------------------------------------------------------------------
-SERIALCOM_FILENAME = "serialcom_init.py"
 TESTBED_FILENAME   = "glossy_test_simulation.json"
 BINARY_FILENAME    = "glossy_test_simulation.bin"
 PROJECT_CONF       = "project_conf.h"
+BUILD_SETTINGS     = "build_settings.txt"
 
 # -----------------------------------------------------------------------------
 TESTBED_INIT_TIME_FORMAT = "%Y-%m-%d %H:%M"
@@ -48,7 +65,10 @@ def check_params():
     * the application folder contains the app binary glossy_test.bin
     * check if simulations directory **can** be created (creation occurs later on)
     * duration is an integer number
+    * payloads are within the range
     """
+    if len(INITS) < 1:
+        raise ValueError("No initiator node defined")
     if not INITS.issubset(ALL_NODES):
         raise ValueError("Initiators are not a subset of nodes available")
 
@@ -57,15 +77,34 @@ def check_params():
         raise ValueError("The given app folder doesn't contain glossy_test.c\n" +
             "Given: {}".format(application_path))
 
-    if not os.path.exists(APP_BINARY):
-        raise ValueError("The given app folder doesn't contain glossy_test.bin\n" +
-            "Generate the binary first!")
-
     # check the simulations dir is not a normal file (wtf?!)
     if os.path.exists(SIMS_DIR) and os.path.isfile(SIMS_DIR):
         raise ValueError("Cannot create simulations directory. A file with the same name already exists.")
 
+    if len(PAYLOADS) < 1:
+        raise ValueError("No payload defined")
+    for payload in PAYLOADS:
+        if payload < 0 or payload > 109:
+            raise ValueError("Defined payload size is not within the boundary 0-109, given {}".format(payload))
+
+
+    for power in POWERS:
+        if power < 0 or power > 0xff:
+            raise ValueError("invalid power value given, allowed range " +
+                    "0x00 - 0xff given {}".format(power))
     return True
+
+def get_project_cflags(flag_values):
+    """Define the additional cflags to set project macros.
+    It is assumed the makefile not to add the value if empty.
+    The variables here refer to those defined in the project Makefile.
+    """
+    defines = [
+        "INITIATOR_ID=%d"     % flag_values[PRJ_INITIATOR],
+        "PAYLOAD_LEN=%d"      % flag_values[PRJ_PAYLOAD],
+        "TX_POWER=%s"         % hex(flag_values[PRJ_TX_POWER])
+    ]
+    return defines
 
 def get_glossy_test_conf():
     """Extract configuration define in the glossy_test.c file.
@@ -123,30 +162,24 @@ def generate_simulations(overwrite=False):
 
     * the simulation has a name made by:
 
-        a. the glossy configuration
-            1. version and
-            2. estimation approach used
-
-        a2. from glossy_test.c
+        a. from glossy_test.c
             1. epoch
             2. slot
             3. guard time
             4. number of transmission
 
-        b. duration of the simulation
-        c. initiator id
+        b. payload length
+        c. duration of the simulaton
+        d. initiator id
 
         The simulation name will be used in the simulation folder creation
         and to determine the path used to store results later
 
-    * copying the binary
+    * producing the binary
     * copying the project conf file
-    * creating a pFile to write the initiator id through serial
     * creating a json file to use in the unitn testbed
-    * create a .txt file containing the filename used to give a meaningful name to the test
     """
     testbed_template   = Template(TESTBED_TEMPLATE)
-    serialcom_template = Template(SERIALCOM_TEMPLATE)
 
     # create dir in which collecting simulations
     if not os.path.exists(SIMS_DIR):
@@ -176,14 +209,16 @@ def generate_simulations(overwrite=False):
     # DO NOT(!) change this from now on
     SIM_PREFIX   = str.join("_", prefix_items)
 
-    for node_id in INITS:
-
+    simulations = 0
+    for init_id, txpower, payload in itertools.product(INITS,\
+                                       POWERS,
+                                       PAYLOADS):
         json_sim = copy.deepcopy(json_testbed)
 
         # give a name to current simulation and create
         # the corresponding folder
-        sim_name = SIM_PREFIX + "_duration{}_init{}"\
-                .format(SIM_DURATION, node_id)
+        sim_name = SIM_PREFIX + "_txpower{}_payload{}_duration{}_init{}"\
+                .format(hex(txpower), payload, SIM_DURATION, init_id)
         sim_dir  = os.path.join(SIMS_DIR, sim_name)
 
         # if a folder with the same name already existed then
@@ -198,41 +233,107 @@ def generate_simulations(overwrite=False):
                 raise ValueError("A simulation folder with the same "+\
                         "name already exists: {}".format(sim_dir))
 
-        os.mkdir(sim_dir)
-        # get the absolute path to the pfile for the current
-        # sim folder
-        abs_sim_pfile = os.path.join(sim_dir, SERIALCOM_FILENAME)
-        abs_sim_pfile = os.path.abspath(abs_sim_pfile)
+        try:
+            os.mkdir(sim_dir)
 
-        # abs path for testbed file
-        sim_testbed_file  = os.path.join(sim_dir, TESTBED_FILENAME)
+            # abs path for testbed file
+            sim_testbed_file  = os.path.join(sim_dir, TESTBED_FILENAME)
 
-        # copy binary and the project conf and get related abs paths
-        abs_sim_binary = os.path.abspath(os.path.join(sim_dir, BINARY_FILENAME))
-        abs_sim_prconf = os.path.abspath(os.path.join(sim_dir, PROJECT_CONF))
-        shutil.copy(APP_BINARY, abs_sim_binary)
+            # copy binary and the project conf and get related abs paths
+            abs_sim_binary = os.path.abspath(os.path.join(sim_dir, BINARY_FILENAME))
+            abs_sim_prconf = os.path.abspath(os.path.join(sim_dir, PROJECT_CONF))
+            abs_build_settings  = os.path.abspath(os.path.join(sim_dir, BUILD_SETTINGS))
+            current_dir = os.getcwd()
+            os.chdir(APP_DIR)
+            print("-"*40 + "\nCleaning previous build")
+            subprocess.check_call(["make","clean"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
 
-        # fill templates with simulation particulars
-        sim_serialcom = serialcom_template.render(init_id = node_id)
-        json_sim["image"]["file"] = abs_sim_binary
-        json_sim["python_script"] = abs_sim_pfile
-        json_sim["image"]["target"] = list(ALL_NODES)
-        json_sim["sim_id"] = sim_name
+            print("-"*40 + "\nBuilding simulation\n" + "-" * 40)
+            # save configuration settings printed at compile time (through pragmas)
+            # to the simulation directory.
+            #
+            # If compilation went wrong, print all the output to stdout
+            pragmas = []
+            outlines  = []
+            pragma_message = re.compile(".*note:\s+#pragma message:\s+(.*)")
+            # compute argument string for configuration parameters
+            # They will be passed to make
+            arg_conf = get_project_cflags({
+                PRJ_INITIATOR: init_id,
+                PRJ_PAYLOAD:   payload,
+                PRJ_TX_POWER:  txpower
+                })
+            make_process = subprocess.Popen(["make"] + arg_conf, stderr=subprocess.STDOUT, stdout=subprocess.PIPE)
+            for line in make_process.stdout:
+                line = line.decode("utf-8")
+                match = pragma_message.match(line)
+                if match:
+                    pragmas.append(match.group(1))
+                outlines.append(line)
+            make_process.wait()
 
-        # if scheduling has to be planned, then add to each
-        # simulation an offset equal to the test duration
-        if plan_schedule:
-            json_sim["ts_init"] = datetime.datetime\
-                    .strftime(sim_ts_init, TESTBED_INIT_TIME_FORMAT)
-            sim_ts_init += datetime.timedelta(seconds=SIM_DURATION + SIMULATION_OFFSET)
+            if make_process.returncode != 0:
+                print(str.join("", outlines))
+                raise subprocess.CalledProcessError(returncode=make_process.returncode, cmd="make")
+            else:
+                # print to stdout the pragmas as feedback
+                print(str.join("\n", pragmas))
 
-        # convert json back to string
-        sim_testbed = json.dumps(json_sim, indent=1)
+            # save build settings to simdir
+            with open(abs_build_settings, "w") as fh:
+                fh.write(str.join("\n", pragmas) + "\n")
 
-        with open(abs_sim_pfile, "w") as fh:
-            fh.write(sim_serialcom)
-        with open(sim_testbed_file, "w") as fh:
-            fh.write(sim_testbed)
+            # return to previous directory
+            os.chdir(current_dir)
+
+            shutil.copy(APP_BINARY, abs_sim_binary)
+            shutil.copy(APP_PRJCONF, abs_sim_prconf)
+
+            # fill templates with simulation particulars
+            json_sim["image"]["file"] = abs_sim_binary
+            json_sim["image"]["target"] = list(ALL_NODES)
+            json_sim["sim_id"] = sim_name
+            # include the last commit of the repo in the json file.
+            # Still, the user has to commit any new change in order
+            # for this info to be useful at all
+            json_sim["commit_id"] = str(git.Repo(APP_DIR, search_parent_directories=True).head.commit)
+
+            # if scheduling has to be planned, then add to each
+            # simulation an offset equal to the test duration
+            if plan_schedule:
+                json_sim["ts_init"] = datetime.datetime\
+                        .strftime(sim_ts_init, TESTBED_INIT_TIME_FORMAT)
+                sim_ts_init += datetime.timedelta(seconds=SIM_DURATION + SIMULATION_OFFSET)
+
+            # convert json back to string
+            sim_testbed = json.dumps(json_sim, indent=1)
+
+            with open(sim_testbed_file, "w") as fh:
+                fh.write(sim_testbed)
+
+        except BaseException as e:
+            clean_simgen_temp()
+            # delete current simulation directory
+            shutil.rmtree(sim_dir)
+            raise e
+
+        # increse sim counter
+        simulations += 1
+
+    # try to clean the project
+    try:
+        clean_simgen_temp()
+    except:
+        pass
+
+    print("{} Simulations generated\n".format(simulations) + "-"*40)
+
+def clean_simgen_temp():
+    print("-"*40 + "\nCleaning simgen temporary files...\n" + "-"*40)
+    current_dir = os.getcwd()
+    os.chdir(APP_DIR)
+    subprocess.check_call(["make","clean"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+    os.chdir(current_dir)
 
 def delete_simulations():
     if not os.path.exists(SIMS_DIR):
