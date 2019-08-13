@@ -332,7 +332,7 @@ def get_current_plot_name():
                                 (xlabel + " " + ylabel).lower())\
                                .split())
 
-def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None):
+def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None, overwrite=False):
     """Plot simulation results either interactively
     or saving them to files.
     """
@@ -345,6 +345,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
     # check how to display plots
     # -------------------------------------------------------------------------
     pdf_fh = None                       # multipage pdf file handler
+    plot_output = None
     if format_ == "":
 
         # use the interactive session
@@ -355,8 +356,15 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
         # create a folder in the destination directory,
         # containing the images generated
         DEST_FOLDER = os.path.join(dest_path, "figures_{}".format(sim_name))
+        plot_output = DEST_FOLDER
         if os.path.exists(DEST_FOLDER):
-            logger.info("Destination directory {} already exists. Clashing .png files will be overwritten...".format(DEST_FOLDER))
+
+            if overwrite is True:
+                logger.info("Destination directory {} already exists. Clashing .png files will be overwritten...".format(DEST_FOLDER))
+            else:
+                logger.info("Destination directory {} already exists. Skipping computation...".format(DEST_FOLDER))
+                return
+
         else:
             os.mkdir(DEST_FOLDER)
         pic_out = lambda plot_name: plt.savefig(os.path.join(DEST_FOLDER, plot_name + ".png"), format="png", papertype="a4", dpi=600)
@@ -366,6 +374,14 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
 
         # create a multipage PDF
         DEST_PDF = os.path.join(dest_path, "figures_multi_{}.pdf".format(sim_name))
+        plot_output = DEST_PDF
+        if os.path.exists(DEST_PDF):
+            if overwrite is True:
+                logger.info("Destination file {} already exists. It will be overwritten...".format(DEST_PDF))
+            else:
+                logger.info("Destination file {} already exists. Skipping computation...".format(DEST_PDF))
+                return
+
         metadata = {\
                 "Title"    : "Results for {}".format(sim_name),\
                 "Author"   : "D3S lab - Unversity of Trento",\
@@ -382,8 +398,13 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
         # create a folder in the destination directory,
         # containing the images generated
         DEST_FOLDER = os.path.join(dest_path, "figures_{}".format(sim_name))
+        plot_output = DEST_FOLDER
         if os.path.exists(DEST_FOLDER):
-            logger.info("Destination directory {} already exists. Clashing .pdf files will be overwritten...".format(DEST_FOLDER))
+            if overwrite is True:
+                logger.info("Destination directory {} already exists. Clashing .pdf files will be overwritten...".format(DEST_FOLDER))
+            else:
+                logger.info("Destination directory {} already exists. Skipping compuation...".format(DEST_FOLDER))
+                return
         else:
             os.mkdir(DEST_FOLDER)
         pic_out = lambda plot_name: plt.savefig(os.path.join(DEST_FOLDER, plot_name + ".pdf"), format="pdf", papertype="a4", dpi=600)
@@ -391,102 +412,111 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
 
     # -------------------------------------------------------------------------
 
-    log_data = get_log_data(sim_log_path, TESTBED)
-    clean_data(log_data, 20)
-
-    # -------------------------------------------------------------------------
-    # PLOTTING DATA
-    # -------------------------------------------------------------------------
-
     try:
-        pkt_tx, nodes_rx = get_sim_pkt(log_data)
-        plt.figure()
-        plot_reception_summary(pkt_tx, nodes_rx)
-        pic_out("summary")
-        plt.close()
+        log_data = get_log_data(sim_log_path, TESTBED)
+        clean_data(log_data, 20)
 
-        plt.figure()
-        nodes_pdr = get_sim_pdr(log_data)
-        plot_pdr(nodes_pdr)
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except IndexError:
-        logger.debug("Couldn't plot pdr")
+        # -------------------------------------------------------------------------
+        # PLOTTING DATA
+        # -------------------------------------------------------------------------
 
-    try:
-        plt.figure()
-        nodes_frelay = get_sim_first_relay_counter(log_data)
-        plot_first_relay_counter(nodes_frelay)
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except:
-        logger.debug("Couldn't plot relay counter")
+        try:
+            pkt_tx, nodes_rx = get_sim_pkt(log_data)
+            plt.figure()
+            plot_reception_summary(pkt_tx, nodes_rx)
+            pic_out("summary")
+            plt.close()
 
-    try:
-        nodes_estimates = get_sim_slot_estimation(log_data)
-        nodes_nfailures = get_sim_failed_slot_estimation(log_data)
-        plt.figure()
-        plt.subplot(1,2,1)
-        plot_slot_estimation(nodes_estimates, FLIERS)
-        plt.subplot(1,2,2)
-        plot_failed_slot_estimation(nodes_nfailures)
-        plt.tight_layout()
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except:
-        logger.debug("Couldn't plot slot estimation")
+            plt.figure()
+            nodes_pdr = get_sim_pdr(log_data)
+            plot_pdr(nodes_pdr)
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot pdr")
 
-    try:
-        nodes_estimates = get_sim_epoch_estimates(log_data)
-        plot_epoch_estimates(nodes_estimates, FLIERS)
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except:
-        logger.debug("Couldn't plot epoch estimations")
+        try:
+            plt.figure()
+            nodes_frelay = get_sim_first_relay_counter(log_data)
+            plot_first_relay_counter(nodes_frelay)
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot relay counter")
 
-    try:
-        plt.figure()
-        nodes_sync, nodes_desync = get_sim_sync_counters(log_data)
-        plot_sync_counters(nodes_sync, nodes_desync)
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except:
-        logger.debug("Couldn't plot sync counters")
+        try:
+            nodes_estimates = get_sim_slot_estimation(log_data)
+            nodes_nfailures = get_sim_failed_slot_estimation(log_data)
+            plt.figure()
+            plt.subplot(1,2,1)
+            plot_slot_estimation(nodes_estimates, FLIERS)
+            plt.subplot(1,2,2)
+            plot_failed_slot_estimation(nodes_nfailures)
+            plt.tight_layout()
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot slot estimation")
 
-    try:
-        plt.figure()
-        #plot_trx(log_data)
-        nodes_tx, nodes_rx = get_sim_flood_trx(log_data)
-        plot_flood_trx(nodes_tx, nodes_rx)
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except:
-        logger.debug("Couldn't plot trx data")
+        try:
+            nodes_estimates = get_sim_epoch_estimates(log_data)
+            plot_epoch_estimates(nodes_estimates, FLIERS)
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot epoch estimations")
 
-    try:
-        nodes_nerr, nodes_nbad_pkt = get_sim_trx_errors(log_data)
-        error_details = get_sim_trx_error_details(log_data)
-        plt.figure()
-        plt.subplot(1,2,1)
-        plot_trx_errors(nodes_nerr, nodes_nbad_pkt)
-        plt.subplot(1,2,2)
-        plot_trx_error_details(error_details)
-        plt.tight_layout()
-        plot_name = get_current_plot_name()
-        pic_out(plot_name)
-        plt.close()
-    except:
-        logger.debug("Couldn't plot trx detailed errors")
-    # -------------------------------------------------------------------------
+        try:
+            plt.figure()
+            nodes_sync, nodes_desync = get_sim_sync_counters(log_data)
+            plot_sync_counters(nodes_sync, nodes_desync)
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot sync counters")
 
-    if pdf_fh is not None:
-        pdf_fh.close()
+        try:
+            plt.figure()
+            #plot_trx(log_data)
+            nodes_tx, nodes_rx = get_sim_flood_trx(log_data)
+            plot_flood_trx(nodes_tx, nodes_rx)
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot trx data")
+
+        try:
+            nodes_nerr, nodes_nbad_pkt = get_sim_trx_errors(log_data)
+            error_details = get_sim_trx_error_details(log_data)
+            plt.figure()
+            plt.subplot(1,2,1)
+            plot_trx_errors(nodes_nerr, nodes_nbad_pkt)
+            plt.subplot(1,2,2)
+            plot_trx_error_details(error_details)
+            plt.tight_layout()
+            plot_name = get_current_plot_name()
+            pic_out(plot_name)
+            plt.close()
+        except:
+            logger.debug("Couldn't plot trx detailed errors")
+        # -------------------------------------------------------------------------
+
+        if pdf_fh is not None:
+            pdf_fh.close()
+    except BaseException as e:
+        if pdf_fh is not None:
+            pdf_fh.close()
+        if os.path.isfile(plot_output):
+            os.remove(plot_output)
+        else:
+            shutil.rmtree(plot_output)
+        raise e
 
 
 if __name__ == "__main__":
@@ -509,6 +539,11 @@ if __name__ == "__main__":
             nargs="?",\
             const = os.curdir,\
             help="The directory where plot figures are saved.")
+    parser.add_argument("-o", "--overwrite",\
+            nargs = "?",\
+            const = True,\
+            default = False,\
+            help="Overwrite output files if already existing")
     parser.add_argument("-f", "--save-format",\
             nargs = "?",\
             const = "pdf-multi",\
@@ -561,7 +596,21 @@ if __name__ == "__main__":
             print("Interactive session unavailable when directories are given")
             sys.exit(0)
 
+        plots_done = 0
+        plots_undone = []
         for sim_name, log_path in simulation_folder_iter(args.log_source):
-            plot_simulation_results(sim_name, log_path, format_, dest_folder)
-
+            try:
+                plot_simulation_results(sim_name, log_path, format_, dest_folder, overwrite=args.overwrite)
+                plots_done += 1
+            except:
+                logger.error("Invalid log found. Skipped: {}".format(log_path))
+                plots_undone.append(log_path)
+        print("-"*40)
+        print("{} simulations successfully processed".format(plots_done))
+        print("{} simulations haven't been processed due to errors".format(len(plots_undone)))
+        print("-"*40)
+        if len(plots_undone) > 0:
+            print("Bad logs:\n" + "-"*40)
+        for badlog in plots_undone:
+            print(badlog)
 
