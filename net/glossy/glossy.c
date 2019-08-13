@@ -56,6 +56,20 @@
 #include "dev/crypto.h"
 #include "dev/ccm.h"
 
+
+/*---------------------------------------------------------------------------*/
+#define XSTR(x) #x
+#define STR(x) XSTR(x)
+/*---------------------------------------------------------------------------*/
+/*                          PRINT CC2538 RF MACRO VALUES                     */
+/*---------------------------------------------------------------------------*/
+#pragma message ("CC2538_RF_CHANNEL         "   STR( CC2538_RF_CHANNEL ))
+#pragma message ("CC2538_RF_TX_POWER        "   STR( CC2538_RF_TX_POWER ))
+#pragma message ("CC2538_RF_CCA_THRES       "   STR( CC2538_RF_CCA_THRES ))
+#pragma message ("CC2538_RF_AUTOACK         "   STR( CC2538_RF_AUTOACK ))
+#pragma message ("CC2538_RF_RXFIFO_THRES    "   STR( CC2538_RF_RXFIFO_THRES ))
+/*---------------------------------------------------------------------------*/
+
 #if GLOSSY_DEBUG_GPIO
 #define GLOSSY_DEBUG_GPIO_PORT_RF_ON                 GPIO_A_NUM
 #define GLOSSY_DEBUG_GPIO_PIN_RF_ON                  6
