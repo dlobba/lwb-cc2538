@@ -46,6 +46,9 @@
 #include "glossy.h"
 #include "deployment.h"
 /*---------------------------------------------------------------------------*/
+#define XSTR(x) #x
+#define STR(x) XSTR(x)
+/*---------------------------------------------------------------------------*/
 // TESTBED NODES
 /*---------------------------------------------------------------------------*/
 //#define INITIATOR_ID                    11
@@ -61,13 +64,31 @@
 //#define INITIATOR_ID                    4
 //#define INITIATOR_ID                    5
 /*---------------------------------------------------------------------------*/
-#define GLOSSY_PERIOD                   (RTIMER_SECOND / 10 * 5)      /* 500 milliseconds */
+#ifndef INITIATOR_ID
+#error No initiator id given. Define the INITIATOR_ID macro
+#endif /* INITIATOR_ID */
+/*---------------------------------------------------------------------------*/
+#define GLOSSY_PERIOD                   (RTIMER_SECOND / 4)      /* 250 milliseconds */
 //#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 33)        /* 30 ms*/
-#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 10)       /* 100 ms*/
+//#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 10)       /* 100 ms*/
+#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 50)       /* 20 ms*/
 #define GLOSSY_T_GUARD                  (RTIMER_SECOND / 1000)     /* 1ms */
 #define GLOSSY_N_TX                     2
 /*---------------------------------------------------------------------------*/
+#ifdef GLOSSY_TEST_CONF_PAYLOAD_DATA_LEN
+#define PAYLOAD_DATA_LEN                GLOSSY_TEST_CONF_PAYLOAD_DATA_LEN
+#else
 #define PAYLOAD_DATA_LEN                109
+#endif
+/*---------------------------------------------------------------------------*/
+/*                          PRINT MACRO DEFINITIONS                          */
+/*---------------------------------------------------------------------------*/
+#pragma message ("INITIATOR_ID:             "   STR( INITIATOR_ID ))
+#pragma message ("PAYLOAD_DATA_LEN:         "   STR( PAYLOAD_DATA_LEN ))
+#pragma message ("GLOSSY_N_TX:              "   STR( GLOSSY_N_TX ))
+#pragma message ("GLOSSY_PERIOD:            "   STR( GLOSSY_PERIOD ))
+#pragma message ("GLOSSY_SLOT:              "   STR( GLOSSY_T_SLOT ))
+#pragma message ("GLOSSY_GUARD:             "   STR( GLOSSY_T_GUARD ))
 /*---------------------------------------------------------------------------*/
 #define WAIT_UNTIL(time) \
 {\
@@ -94,16 +115,9 @@ static rtimer_clock_t t_ref;
 
 // static uint8_t aes_key[32];
 /*---------------------------------------------------------------------------*/
-#define SKIP_SERIAL_INPUT                   0
-PROCESS(serial_process, "Serial process");
+// Contiki Process definition
 PROCESS(glossy_test, "Glossy test");
-
-#if SKIP_SERIAL_INPUT
 AUTOSTART_PROCESSES(&glossy_test);
-#else
-#define INITIATOR_ID                        0
-AUTOSTART_PROCESSES(&serial_process);
-#endif /* SKIP_SERIAL_INPUT */
 /*---------------------------------------------------------------------------*/
 static unsigned short int initiator_id = INITIATOR_ID;
 static uint8_t password[]   = {0x0, 0x0, 0x4, 0x2};
@@ -316,38 +330,6 @@ PROCESS_THREAD(glossy_test, ev, data)
                 (rtimer_callback_t)glossy_thread, NULL);
     }
     /*-----------------------------------------------------------------------*/
-    PROCESS_END();
-}
-/*---------------------------------------------------------------------------*/
-/*                          SERIAL PROCESS                                   */
-/*---------------------------------------------------------------------------*/
-/* Keep on reading on the serial upon receiving information on who is the
- * initiator.
- */
-#define INIT_LABEL          "INITIATOR"
-#define INIT_FORMAT         "INITIATOR %hu\n"
-PROCESS_THREAD(serial_process, ev, data)
-{
-    PROCESS_BEGIN();
-
-    while (1) {
-        PROCESS_WAIT_EVENT_UNTIL(ev == serial_line_event_message);
-
-        if (strncmp((char*)data, INIT_LABEL, strlen(INIT_LABEL)) == 0) {
-            int nitems = sscanf((char*) data, INIT_FORMAT, &initiator_id);
-            if (nitems > 0) {
-                // initiator_id has been set, continue with
-                // the main glossy process
-                break;
-            }
-        } else {
-            printf("error! unrecognized '%s'\n", (char*)data);
-        }
-    }
-
-    printf("Initiator ID: %hu\n", initiator_id);
-
-    process_start(&glossy_test, NULL);
     PROCESS_END();
 }
 /*---------------------------------------------------------------------------*/
