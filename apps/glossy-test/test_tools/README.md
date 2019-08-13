@@ -9,15 +9,15 @@ It does so by:
   to the id of the initiator. The folder contains:
 
   1. the copy of the binary file used;
-  2. the python script (*pfile*) used for serial communication, printing
-     the id of the initiator node;
-  3. a copy of the `project-conf.h` file used by the simulation;
-  4. a `glossy_test_sim.json` file, ready to be sent to the testbed, with
+  2. a copy of the `project-conf.h` file used by the simulation;
+  3. a `glossy_test_sim.json` file, ready to be sent to the testbed, with
      **absolute paths** to the binary and the pfile required (present in the current
      simulation directory).
 
      The set of keys has been extended with a `sim_id` field, which contains
      an identifier to the current simulation (matching the simulation folder's name).
+
+    The identifier for the commit repo has been added too.
 
 **NOTE:**
 
@@ -44,6 +44,9 @@ PARAMS = {
 
     "initiator": [11, 12, 10, 13, 14, 15, 16, 17, 2, 1, 4, 5],
 
+    "payloads" : [0, 109],
+    "powers"   : [0xd5],        # default power setting
+
     "ts_init"  : "asap",
 
     "duration" : 60    # Duration of each simulation
@@ -62,6 +65,12 @@ Where:
 * `initiator` defines a list of nodes that will be, **within different
   simulations**, the initiators. At every simulation there will
   be a single initiator.
+
+* `payloads` is a list containing payload values to be used in simulations
+   packets. The accepted range 0 - 109
+
+* `powers` is a list defining the transmission power settings to
+  be used to generate configurations.
 
 * `duration` defines the duration (in **seconds**) for a single
   simulation.
@@ -90,11 +99,17 @@ A folder's name differs based on the following:
 * it will contain a string `ntx<K>` where `K` defines the maximum number
   of transmissions (within a flood) defined in Glossy-Test;
 
+* it will contain a string `txpower0x<V>` where `V` is the tx power value
+  assigned.
+
+* it will contain a string `payload<L>` where `L` is the length of the
+  payload used as the application data.
+
 * finally it will contain a string identifying the duration (in
   *seconds*) of the simulation and the id of the initiator.
 
 For instance, one such string is:
-`500ms_100ms_1ms_ntx2_duration60_init15`.
+`500ms_100ms_1ms_ntx2_txpower0xd5_payload109_duration60_init15`.
 
 
 By default, during simulation's creation, the process will raise
