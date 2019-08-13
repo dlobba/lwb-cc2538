@@ -86,7 +86,11 @@ TESTBED_RPI_PREFIX = r"\[\d+-\d+-\d+\s+\d+:\d+:\d+,\d+\]"\
 
 GLOSSY_LOG = r"^\[\s*([\w0-9-_]+)\s*\]\s*(.*)"
 GLOSSY_RELAY_CNT = r"^\[GLOSSY_INFO\]\s*Relay_cnt:\s*(\d+)"
-GLOSSY_INIT_MSG = r"Glossy successfully initialised"
+GLOSSY_INIT_MSG = r"^Starting Glossy.*"
+# For some strange reason, fireflies in the testbed don't print the
+# the following message, which occur before "Starting Glossy"
+# GLOSSY_INIT_MSG = r"Glossy successfully initialised"
+
 
 # ERROR REGEX
 BROKEN_LABEL = r"^\[[^\]]*$"
