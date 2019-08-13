@@ -41,7 +41,6 @@
 #include "sys/autostart.h"
 #include "sys/rtimer.h"
 #include "sys/etimer.h"
-#include "serial-line.h"
 
 #include "glossy.h"
 #include "deployment.h"
