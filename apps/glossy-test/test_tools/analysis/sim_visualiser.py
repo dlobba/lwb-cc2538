@@ -20,6 +20,7 @@ from pathlib import Path
 
 from parser import get_log_data
 
+from data_analysis import DAException
 from data_analysis import clean_data
 from data_analysis import get_sim_pdr, get_sim_first_relay_counter, get_sim_slot_estimation, get_sim_failed_slot_estimation
 from data_analysis import get_sim_epoch_estimates
@@ -413,6 +414,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
     # -------------------------------------------------------------------------
 
     try:
+        print("-"*40 + "\nProcessing file:\n%s\n" % sim_log_path + "-"*40)
         log_data = get_log_data(sim_log_path, TESTBED)
         clean_data(log_data, 20)
 
@@ -421,7 +423,25 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
         # -------------------------------------------------------------------------
 
         try:
-            pkt_tx, nodes_rx = get_sim_pkt(log_data)
+            pkt_tx, nodes_rx, not_received = get_sim_pkt(log_data)
+
+            # display info on the effective # packets
+            # received by each node
+            print("Number of packets considered: {}".format(pkt_tx))
+            print("-" * 40)
+            for nid, nrx in nodes_rx.items():
+                print("Node {}: {}".format(str(nid).zfill(2), nrx))
+
+            not_received = {k:v for k,v in not_received.items() if len(v) > 0}
+            if len(not_received) > 0:
+                print("-"*40 + "\nNOT RECEIVED\n" + "-"*40)
+                for nid, nr in not_received.items():
+                    pkts = [str(seqno) for seqno in list(nr)]
+                    missing_pkts = str.join(", ", pkts)
+                    print("Id %s: %s" % (str(nid).zfill(2), missing_pkts))
+            else:
+                print("Every packet has been received")
+
             plt.figure()
             plot_reception_summary(pkt_tx, nodes_rx)
             pic_out("summary")
@@ -433,7 +453,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot pdr")
 
         try:
@@ -443,7 +465,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot relay counter")
 
         try:
@@ -458,7 +482,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot slot estimation")
 
         try:
@@ -467,7 +493,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot epoch estimations")
 
         try:
@@ -477,7 +505,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot sync counters")
 
         try:
@@ -488,7 +518,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot trx data")
 
         try:
@@ -503,7 +535,9 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
-        except:
+        except DAException as e:
+            raise e
+        except Exception as e:
             logger.debug("Couldn't plot trx detailed errors")
         # -------------------------------------------------------------------------
 
@@ -602,8 +636,12 @@ if __name__ == "__main__":
             try:
                 plot_simulation_results(sim_name, log_path, format_, dest_folder, overwrite=args.overwrite)
                 plots_done += 1
-            except:
+            except DAException as e:
+                # data analysis exceptions are important, don't skip them
+                raise e
+            except Exception as e:
                 logger.error("Invalid log found. Skipped: {}".format(log_path))
+                logger.error(e)
                 plots_undone.append(log_path)
         print("-"*40)
         print("{} simulations successfully processed".format(plots_done))

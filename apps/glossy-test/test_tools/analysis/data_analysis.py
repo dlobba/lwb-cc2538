@@ -3,14 +3,11 @@ import math
 import logging
 
 import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
 
 from functools import reduce
 
 import dao
 
-from parser import get_log_data
 from parser import NODES_ENTRY, NODE_ENTRY, BROADCAST_ENTRY
 from parser import FLOODS_ENTRY, GLOSSY_ENTRY
 from parser import SEQNO_ATTR, REF_RELAY_CNT_ATTR, T_SLOT_ATTR
@@ -28,23 +25,36 @@ logging.basicConfig(level=logging.DEBUG)
 logging.getLogger(__name__).setLevel(level=logging.DEBUG)
 # -----------------------------------------------------------------------------
 
+class DAException(Exception):
+
+    def __init__(self, message):
+        super(Exception, self).__init__(message)
+
+
 def get_sim_pkt(data):
     """
     1. Determine the number of broadcast performed by all packets
     2. Determine the total number of packets received by any node
+    3. Determined at each node which are the packets lost
     """
-    broadcasts = dao.select(data, BROADCAST_ENTRY)
-    pkt_tx = reduce(lambda x,y: x + y,\
-                map(len, broadcasts))
+    broadcasts = [set(bcast) for bcast in dao.select(data, BROADCAST_ENTRY)]
+    pkt_tx = reduce(lambda x,y: x.union(y),broadcasts)
     nodes_data = dao.group_by(data, NODE_ENTRY)
-    # compute map <node, num_floods>
+    # compute map <node, pkt_rx>
     # if node n has flood entry f, then it received at least one packet
     # during that flood
-    pkt_rx = {node:len(dao.select(nodes_data[node], FLOODS_ENTRY))\
+    pkt_rx = {node:set(dao.select(nodes_data[node], SEQNO_ATTR))\
             for node in nodes_data}
 
-    nodes_pkt = {node_id : pkt_rx[node_id] for node_id in pkt_rx.keys()}
-    return pkt_tx, nodes_pkt
+    not_received = {node:[] for node in nodes_data}
+    for nid, rx in pkt_rx.items():
+        if not rx.issubset(pkt_tx):
+            logger.error("Received packets are not a subset of those sent in node %s" % str(nid))
+            raise DAException("Received packets are not a subset of those sent in node %s" % str(nid))
+        not_received[nid] = pkt_tx.difference(rx)
+
+    nodes_pkt = {node_id : len(pkt_rx[node_id]) for node_id in pkt_rx.keys()}
+    return len(pkt_tx), nodes_pkt, not_received
 
 def get_sim_pdr(data):
     """
@@ -53,27 +63,20 @@ def get_sim_pdr(data):
     3. For each node, divide the number of packets received by the
        number of packets sent computed in (1)
     """
-    broadcasts = dao.select(data, BROADCAST_ENTRY)
-    pkt_tx = reduce(lambda x,y: x + y,\
-                map(len, broadcasts))
+    broadcasts = [set(bcast) for bcast in dao.select(data, BROADCAST_ENTRY)]
+    pkt_tx = reduce(lambda x,y: x.union(y),broadcasts)
     nodes_data = dao.group_by(data, NODE_ENTRY)
-    # compute map <node, num_floods>
-    # if node n has flood entry f, then it received at least one packet
-    # during that flood
-    pkt_rx = {node:len(dao.select(nodes_data[node], FLOODS_ENTRY))\
+    pkt_rx = {node:set(dao.select(nodes_data[node], SEQNO_ATTR))\
             for node in nodes_data}
 
-    # JUST FOR PRINTING: display info on the effective # packets
-    # received by each node
-    nodes_pkt = {node_id : pkt_rx[node_id] for node_id in pkt_rx.keys()}
-    print("-" * 40)
-    print("Number of packets considered: {}".format(pkt_tx))
-    print("-" * 40)
-    for nid, pdr in nodes_pkt.items():
-        print("Node {}: {}".format(str(nid).zfill(2), pdr))
+    # check that receveived packet are a subset of those tx
+    for nid, rx in pkt_rx.items():
+        if not rx.issubset(pkt_tx):
+            logger.error("Received packets are not a subset of those sent in node %s" % str(nid))
+            raise DAException("Received packets are not a subset of those sent in node %s" % str(nid))
 
     # return pdr for each node
-    nodes_pdr = {node_id : pkt_rx[node_id]/pkt_tx for node_id in pkt_rx.keys()}
+    nodes_pdr = {node_id : len(pkt_rx[node_id])/len(pkt_tx) for node_id in pkt_rx.keys()}
     return nodes_pdr
 
 # TODO: unused function, remove it
@@ -254,65 +257,32 @@ def get_sim_epoch_estimates(data):
 def clean_data(data, offset):
     """Drop initial and terminal floods information.
 
-    1. Determine the set of packets received by at least one node.
-    2. Pick the lowest and highest sequence numbers of such set.
-    3. Add a +offset to lowest and a -offset to the highest
-       and get a continuous sequence of numbers S between
+    1. the set of packets considered is the set of packet
+       broadcast by any node, reduced by an offset to remove
+       marginal floods
 
-            S = [lowest+offset, highest-offset]
-
-    4. Check that all packets within S have been
-       received by at least one node.
-       In case remove differing packets from S.
-    5. Remove any packet not in S from every node
-    6. Remove references of such packets also from the broadcast
+    2. Any flood corresponding to a sequence number different from
+      the set given by 1, is discarded
+    2. Remove references to discarded packet also from the broadcast
        packets sets.
     """
-    pkts = [set(pkt_node) for pkt_node in dao.select(data, SEQNO_ATTR)]
-    # point 1
-    pkt_received_some = reduce(lambda x, y: x.union(y), pkts)
-    # point 2 & 3
-    # Due to packet corruption, it happened that a node received a
-    # a packet with a seqno tremendously high (some billion).
-    # This leads to MemoryError when creating a sequence from
-    # 0 up to this value.
-    # Here we address this problem by trying to create the sequence, if
-    # MemoryError occurred, we remove the problematic value from the
-    # set and try to compute the sequence again.
-    # The problematic flood on the node will be removed. Other nodes
-    # will have the correct flood, generating a discrepancy
-    # between the set of received packets and the transmitted set.
-    sequence_done = False
-    pkt_to_remove = set()
-    while not sequence_done:
-        min_seqno = min(pkt_received_some) + offset
-        max_seqno = max(pkt_received_some) - offset
-        try:
-            pkt_considered = set(range(min_seqno, max_seqno + 1))
-            # able to build the sequence, exit the loop
-            sequence_done  = True
-        except MemoryError:
-            problematic_pkt = max(pkt_received_some)
-            pkt_received_some.remove(problematic_pkt)
-            pkt_to_remove.add(problematic_pkt)
-            logger.debug("Possible unexpected delivery on pkt: {}. Removed"\
-                    .format(problematic_pkt))
-    # point 4
-    pkt_diffs = pkt_considered.difference(pkt_received_some)
-    for pkt in pkt_diffs:
-        pkt_considered.remove(pkt)
-    # point 5
-    pkt_to_remove.update(\
-            pkt_received_some.difference(pkt_considered))
-    dao.delete(data, SEQNO_ATTR, pkt_to_remove)
-    # point 6
+    pkt_bcast     = [set(pkt_node) for pkt_node in dao.select(data, BROADCAST_ENTRY)]
+    pkt_bcast_some    = reduce(lambda x, y: x.union(y), pkt_bcast)
+    pkt_considered = list(pkt_bcast_some)[0 + offset : -offset]
+
+    pkt_received  = [set(pkt_node) for pkt_node in dao.select(data, SEQNO_ATTR)]
+    pkt_received_some = reduce(lambda x, y: x.union(y), pkt_received)
+
+    to_remove = set(pkt_bcast_some).union(pkt_received_some).difference(set(pkt_considered))
+    dao.delete(data, SEQNO_ATTR, to_remove)
+
     # remove packets not considered from node broadcasts
     paths = dao.get_paths_for_field(data, BROADCAST_ENTRY)
     path  = paths[0]
     bcast_structures = dao.get_pointer_to(data, path)
     for bcast_structure in bcast_structures:
         new_pkt_bcast = set(bcast_structure[BROADCAST_ENTRY])\
-                .difference(pkt_to_remove)
+                .difference(to_remove)
         bcast_structure[BROADCAST_ENTRY] = list(new_pkt_bcast)
 
     # remove first and last epoch estimates
@@ -323,16 +293,17 @@ def clean_data(data, offset):
         new_epoch_rtimer = bcast_structure[RTIMER_EPOCH_ATTR][0 + offset : -offset]
         bcast_structure[RTIMER_EPOCH_ATTR] = new_epoch_rtimer
 
-
-    # test that the pkt broadcast match those received
-    pkt_received  = [set(pkt_node) for pkt_node in dao.select(data, SEQNO_ATTR)]
+    # test that the pkt broadcast match those received, and vice versa
     pkt_bcast     = [set(pkt_node) for pkt_node in dao.select(data, BROADCAST_ENTRY)]
     pkt_bcast_some    = reduce(lambda x, y: x.union(y), pkt_bcast)
+    pkt_received  = [set(pkt_node) for pkt_node in dao.select(data, SEQNO_ATTR)]
     pkt_received_some = reduce(lambda x, y: x.union(y), pkt_received)
     tx_rx_diff = pkt_bcast_some.symmetric_difference(pkt_received_some)
     if len(tx_rx_diff) != 0:
         logger.debug("Packets received and sent differ!")
         logger.debug("Differing packets: {}".format(tx_rx_diff))
+        raise DAException("Packets received and sent differ!")
+
     return True
 
 
