@@ -2,12 +2,11 @@
     "name" : "Glossy test on Firefly",
     "description" : "Execute the Firefly implementation of Glossy",
     "ts_init" : "asap",
-    "duration" : 600,
+    "duration" : 300,
     "image" : {
         "hardware" : "firefly",
         "file" : "./glossy_test.bin",
         "programAddress": "0x00200000",
-        "target" : [1, 2, 4, 5, 10, 11, 12, 13, 14, 15, 16, 17]
-    },
-    "python_script" : "./serialcom_script.py"
+        "target" : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]
+    }
 }
