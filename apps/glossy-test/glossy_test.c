@@ -69,7 +69,6 @@
 /*---------------------------------------------------------------------------*/
 #define GLOSSY_PERIOD                   (RTIMER_SECOND / 4)      /* 250 milliseconds */
 //#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 33)        /* 30 ms*/
-//#define GLOSSY_T_SLOT                   (RTIMER_SECOND / 10)       /* 100 ms*/
 #define GLOSSY_T_SLOT                   (RTIMER_SECOND / 50)       /* 20 ms*/
 #define GLOSSY_T_GUARD                  (RTIMER_SECOND / 1000)     /* 1ms */
 #define GLOSSY_N_TX                     2
@@ -119,6 +118,7 @@ PROCESS(glossy_test, "Glossy test");
 AUTOSTART_PROCESSES(&glossy_test);
 /*---------------------------------------------------------------------------*/
 static unsigned short int initiator_id = INITIATOR_ID;
+static glossy_status_t status;
 static uint8_t password[]   = {0x0, 0x0, 0x4, 0x2};
 static size_t  password_len = 0;
 static bool    password_set = false;
@@ -140,7 +140,7 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
 
         if(node_id == initiator_id) {
 
-            glossy_start(node_id,
+            status = glossy_start(node_id,
                     (uint8_t*)&glossy_payload,
                     sizeof(glossy_data_t),
                     GLOSSY_N_TX,
@@ -148,6 +148,11 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
 
             WAIT_UNTIL(rt->time + GLOSSY_T_SLOT);
             glossy_stop();
+
+            if (status != GLOSSY_STATUS_SUCCESS) {
+                printf("[APP_INFO]\tglossy start failed. Retrying tx on next epoch.");
+                continue
+            }
 
             printf("[GLOSSY_BROADCAST]\tsent_seq %"PRIu32", payload_len %u\n",
                     glossy_payload.seq_no,
@@ -293,18 +298,18 @@ PROCESS_THREAD(glossy_test, ev, data)
 
     // DON'T SET ENCODING
     /*
-       aes_key[0] = 0xa5;  aes_key[1] = 0x86;
-       aes_key[2] = 0xe5;  aes_key[3] = 0x1a;
-       aes_key[4] = 0x96;  aes_key[5] = 0xfe;
-       aes_key[6] = 0x56;  aes_key[7] = 0xaa;
-       aes_key[8] = 0x7f;  aes_key[9] = 0xa3;
-       aes_key[10] = 0xb4; aes_key[11] = 0x70;
-       aes_key[12] = 0xee; aes_key[13] = 0xe6;
-       aes_key[14] = 0x0b; aes_key[15] = 0x04;
-       glossy_set_enc_key(aes_key, GLOSSY_AES_128_KEY_SIZE);
-
-       glossy_set_enc(GLOSSY_ENC_ON);
-       */
+    aes_key[0] = 0xa5;  aes_key[1] = 0x86;
+    aes_key[2] = 0xe5;  aes_key[3] = 0x1a;
+    aes_key[4] = 0x96;  aes_key[5] = 0xfe;
+    aes_key[6] = 0x56;  aes_key[7] = 0xaa;
+    aes_key[8] = 0x7f;  aes_key[9] = 0xa3;
+    aes_key[10] = 0xb4; aes_key[11] = 0x70;
+    aes_key[12] = 0xee; aes_key[13] = 0xe6;
+    aes_key[14] = 0x0b; aes_key[15] = 0x04;
+    glossy_set_enc_key(aes_key, GLOSSY_AES_128_KEY_SIZE);
+    glossy_set_enc(GLOSSY_ENC_ON);
+    */
+    glossy_set_enc(GLOSSY_ENC_OFF);
 
     // Add a password to the data payload to check for packet integrity
     glossy_payload.seq_no  = 0;
