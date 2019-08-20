@@ -107,6 +107,7 @@ FILTER_RULES = [
         r"^\[GLOSSY_BROADCAST\]",\
         r"^\[APP_STATS\]",\
         r"^\[APP_DEBUG\]",\
+        r"^\[APP_INFO\]",\
         GLOSSY_RELAY_CNT
 ]
 # -----------------------------------------------------------------------------
@@ -322,7 +323,8 @@ def get_log_data(filename, testbed=True):
                 else:
                     logger.debug("Unmanaged {} tag information: {}"\
                             .format(label, strip_content))
-
+            elif label == "APP_INFO":
+                logger.debug("Failed to init flood. Retrying on next slot")
             else:
 
                 if label in unmanaged_labels:
