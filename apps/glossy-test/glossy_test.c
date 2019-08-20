@@ -151,7 +151,7 @@ PT_THREAD(glossy_thread(struct rtimer *rt))
 
             if (status != GLOSSY_STATUS_SUCCESS) {
                 printf("[APP_INFO]\tglossy start failed. Retrying tx on next epoch.");
-                continue
+                continue;
             }
 
             printf("[GLOSSY_BROADCAST]\tsent_seq %"PRIu32", payload_len %u\n",
