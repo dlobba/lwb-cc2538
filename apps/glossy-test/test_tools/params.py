@@ -8,10 +8,12 @@ PARAMS = {
 
     # list describing, in each simulation, the node to be the initiator.
     # There will be a **separate** simulation for each of these nodes.
-    "initiator": [3, 15],
+    #"initiator" : [1, 2, 3, 4 ,5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+    "initiator" : [17],
 
-    "payloads" : [0, 109],
-    "powers"   : [0xd5],                # Default tx power for xx2538
+    "ntxs"     : [2],
+    "payloads" : [2],
+    "powers"   : [0xb6],                # Default tx power for cc2538
 
     # If a time is given in format %Y-%m-%d %H:%M
     # then the first simulation is scheduled at that time
