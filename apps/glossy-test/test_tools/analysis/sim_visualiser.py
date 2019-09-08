@@ -19,6 +19,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from pathlib import Path
 
 from parser import get_log_data
+from chart_config import init_matplotlib
+from navigator import simulation_log_iter
 
 from data_analysis import DAException
 from data_analysis import clean_data
@@ -27,50 +29,6 @@ from data_analysis import get_sim_epoch_estimates
 from data_analysis import get_sim_sync_counters
 from data_analysis import get_sim_trx, get_sim_flood_trx
 from data_analysis import get_sim_trx_errors, get_sim_trx_error_details, get_sim_pkt
-
-
-matplotlib.style.use(["seaborn"])
-
-rc_params = {
-"lines.linewidth"   : 1.5,      # line width in points
-"lines.antialiased" : True,     # render lines in antialiased (no jaggies)
-"patch.linewidth"   : .5,       # edge width in points.
-"patch.antialiased" : True,     # render patches in antialiased (no jaggies)
-"patch.facecolor"   : "C1",
-"boxplot.whiskers"  : 1.0,
-"boxplot.patchartist" : True,
-"boxplot.showfliers"  : True,
-"boxplot.flierprops.linewidth" : .8,
-"boxplot.boxprops.linewidth"   : .8,
-"boxplot.whiskerprops.linewidth" : .8,
-"boxplot.capprops.linewidth"     : .8,
-"boxplot.medianprops.linewidth" : 1.0,
-"boxplot.meanprops.linewidth"   : 1.0,
-"boxplot.medianprops.color"     : "black",
-"font.size"         : 11.0,
-"axes.linewidth"    : 0.8,          # edge linewidth
-"axes.titlesize"    : "large",      # fontsize of the axes title
-"axes.titlepad"     : 6.0,          # pad between axes and title in points
-"axes.labelpad"     : 6.0,          # space between label and axis
-"axes.labelsize"    : "large",      # space between label and axis
-"axes.grid"         : True,         # display grid or not
-"xtick.major.width" : 0.8,          # major tick width in points
-"xtick.minor.width" : 0.6,          # minor tick width in points
-"xtick.labelsize"   : "medium",     # fontsize of the tick labels
-"ytick.major.width" : 0.8,          # major tick width in points
-"ytick.minor.width" : 0.6,          # minor tick width in points
-"ytick.labelsize"   : "medium",     # fontsize of the tick labels
-"grid.linewidth"    : 0.8,          # in points
-"legend.loc"        : "best",
-"legend.frameon"    : True,         # if True, draw the legend on a background patch
-"legend.framealpha" : 0.9,          # legend patch transparency
-"legend.fancybox"   : True,         # if True, use a rounded box for the
-"legend.fontsize"   : "medium",
-"image.cmap"        : "tab20"
-}
-
-for k,v in rc_params.items():
-    matplotlib.rcParams[k] = v
 
 # -----------------------------------------------------------------------------
 logger = logging.getLogger(__name__)
@@ -81,6 +39,7 @@ logging.getLogger(__name__).setLevel(level=logging.DEBUG)
 mpl_logger = logging.getLogger(matplotlib.__name__)
 mpl_logger.setLevel(logging.WARNING)
 # -----------------------------------------------------------------------------
+init_matplotlib()
 
 def plot_pdr(nodes_pdr):
     """
@@ -128,12 +87,13 @@ def plot_first_relay_counter(nodes_frelay):
     """Produce a box blot of the values
     assumed by the first relay counter during across
     the considered floods."""
+
     x = [int(nid) for nid in nodes_frelay.keys()]  # node ids
     x.sort()
     x = [str(nid) for nid in x]
     y = [nodes_frelay[nid] for nid in x]           # relay counters
 
-    plt.boxplot(y, showfliers=True, autorange=True)
+    plt.boxplot(y, showfliers=True, whis=[1,99])
     locs, labels = plt.xticks()
     plt.xticks(locs, x)
     plt.xlabel("Nodes")
@@ -302,25 +262,6 @@ def plot_epoch_estimates(nodes_epochs, fliers=False):
 # -----------------------------------------------------------------------------
 # MAIN-SCRIPT FUNCTIONS
 # -----------------------------------------------------------------------------
-def simulation_folder_iter(str_start_path):
-    """Iterate over all folders starting from the
-    application directory, considering any folder containing
-    a .log file.
-
-    Return all individual simulation folders.
-    A pair <name, path> is returned for each simulation
-    """
-    logger.info("Searching log files starting from: {}".format(str_start_path))
-    log_paths = Path(str_start_path).glob("**/*.log")
-
-    log_reg = re.compile(r"(?:.*/)*(.*).log$")
-    for log_path in log_paths:
-
-        match = log_reg.match(str(log_path))
-        if match:
-            name = match.group(1)
-            yield name, str(log_path)
-
 def get_current_plot_name():
     """Return an identifier based on the x,y labels
     of the current plot.
@@ -340,7 +281,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
     if format_ is None:
         format_ = ""
     if dest_path is None:
-        dest_path = os.curdir
+        dest_path = os.path.dirname(os.path.abspath(sim_log_path))
 
     # -------------------------------------------------------------------------
     # check how to display plots
@@ -415,7 +356,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
 
     try:
         print("-"*40 + "\nProcessing file:\n%s\n" % sim_log_path + "-"*40)
-        log_data = get_log_data(sim_log_path, TESTBED)
+        log_data = get_log_data(sim_log_path)
         clean_data(log_data, 20)
 
         # -------------------------------------------------------------------------
@@ -571,7 +512,7 @@ if __name__ == "__main__":
     # optional args
     parser.add_argument("-s", "--save-plots",\
             nargs="?",\
-            const = os.curdir,\
+            const = True,\
             help="The directory where plot figures are saved.")
     parser.add_argument("-o", "--overwrite",\
             nargs = "?",\
@@ -584,9 +525,6 @@ if __name__ == "__main__":
             default = "pdf-multi",\
             choices = ["png", "pdf", "pdf-multi"],\
             help="The format used when saving plots. Either PNG or PDF, single file or one file per page")
-    parser.add_argument("-n", "--normal-log",\
-            help="When flagged, parsing is performed assuming the log doesn't follow the testbed format",\
-            action="store_true")
 
     args = parser.parse_args()
     # -------------------------------------------------------------------------
@@ -596,20 +534,18 @@ if __name__ == "__main__":
     # set testbed to false if data comes from
     # the testbed
     FLIERS  = False
-    TESTBED = True
-    if args.normal_log is True:
-        TESTBED = False
 
     format_ = args.save_format
-    dest_folder = args.save_plots
-    if args.save_plots:
+    if args.save_plots is True:
+        dest_folder = None
+    elif args.save_plots:
 
-        dest_folder = os.path.abspath(dest_folder)
-
+        dest_folder = os.path.abspath(args.save_plots)
         if not(os.path.exists(dest_folder) and os.path.isdir(dest_folder)):
             os.mkdir(dest_folder)
     else:
         # if no saving, then save format must be None (force interactive plots)
+        dest_folder = None
         format_ = None
     # -------------------------------------------------------------------------
 
@@ -632,16 +568,15 @@ if __name__ == "__main__":
 
         plots_done = 0
         plots_undone = []
-        for sim_name, log_path in simulation_folder_iter(args.log_source):
+        for sim_name, log_path in simulation_log_iter(args.log_source):
             try:
                 plot_simulation_results(sim_name, log_path, format_, dest_folder, overwrite=args.overwrite)
                 plots_done += 1
             except DAException as e:
                 # data analysis exceptions are important, don't skip them
                 raise e
-            except Exception as e:
+            except Exception:
                 logger.error("Invalid log found. Skipped: {}".format(log_path))
-                logger.error(e)
                 plots_undone.append(log_path)
         print("-"*40)
         print("{} simulations successfully processed".format(plots_done))
