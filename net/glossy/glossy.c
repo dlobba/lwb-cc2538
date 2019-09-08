@@ -63,11 +63,11 @@
 /*---------------------------------------------------------------------------*/
 /*                          PRINT CC2538 RF MACRO VALUES                     */
 /*---------------------------------------------------------------------------*/
-#pragma message ("CC2538_RF_CHANNEL         "   STR( CC2538_RF_CHANNEL ))
-#pragma message ("CC2538_RF_TX_POWER        "   STR( CC2538_RF_TX_POWER ))
-#pragma message ("CC2538_RF_CCA_THRES       "   STR( CC2538_RF_CCA_THRES ))
-#pragma message ("CC2538_RF_AUTOACK         "   STR( CC2538_RF_AUTOACK ))
-#pragma message ("CC2538_RF_RXFIFO_THRES    "   STR( CC2538_RF_RXFIFO_THRES ))
+#pragma message ("CC2538_RF_CHANNEL:        "   STR( CC2538_RF_CHANNEL ))
+#pragma message ("CC2538_RF_TX_POWER:       "   STR( CC2538_RF_TX_POWER ))
+#pragma message ("CC2538_RF_CCA_THRES:      "   STR( CC2538_RF_CCA_THRES ))
+#pragma message ("CC2538_RF_AUTOACK:        "   STR( CC2538_RF_AUTOACK ))
+#pragma message ("CC2538_RF_RXFIFO_THRES:   "   STR( CC2538_RF_RXFIFO_THRES ))
 /*---------------------------------------------------------------------------*/
 
 #if GLOSSY_DEBUG_GPIO
