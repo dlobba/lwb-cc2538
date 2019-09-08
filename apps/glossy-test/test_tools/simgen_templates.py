@@ -10,7 +10,6 @@ r"""
         "file":    "< path-to-binary >",
         "programAddress": "0x00200000",
         "target":  "< list-of-targets >"
-    },
-    "sim_id": "< sim_id >"
+    }
 }
 """
