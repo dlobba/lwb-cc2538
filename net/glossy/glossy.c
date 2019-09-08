@@ -1332,6 +1332,7 @@ glossy_status_t glossy_init(void)
 {
   cc2538_rf_init();
 
+  cc2538_rf_set_tx_power(CC2538_RF_TX_POWER);
   cc2538_rf_set_channel(CC2538_RF_CHANNEL);
   /* Initialize id_header */
   g_cntxt.id_header = IHEADER_MAGIC;
