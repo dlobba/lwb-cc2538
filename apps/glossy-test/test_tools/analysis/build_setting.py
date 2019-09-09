@@ -31,7 +31,7 @@ SETTINGS_FULL = [
 
 FILTER_RULES = {
         "(?i)cc2538_rf_channel:\s+(\d+)": SIM_CHANNEL,\
-        "(?i)cc2538_rf_tx_power:\s+(\w+)": SIM_TXPOWER,\
+        "(?i)cc2538_rf_tx_power:\s+(-?\d+)": SIM_TXPOWER,\
         "(?i)initiator_id:\s+(\d+)": SIM_INITIATOR,\
         "(?i)payload_data_len:\s+(\d+)": SIM_PAYLOAD_LEN,\
         "(?i)glossy_n_tx:\s+(\d+)": SIM_NTX,\
@@ -73,7 +73,7 @@ def parse_build_setting_lines(lines):
             settings[SIM_CHANNEL] = int(match.group(1))
 
         elif rule == SIM_TXPOWER:
-            settings[SIM_TXPOWER] = match.group(1)
+            settings[SIM_TXPOWER] = int(match.group(1))
 
         elif rule == SIM_INITIATOR:
             settings[SIM_INITIATOR] = int(match.group(1))
@@ -113,12 +113,14 @@ def get_radio_channel(settings):
     return settings[SIM_CHANNEL]
 
 def get_sim_name(settings):
-    values = [settings[v] for v in SETTINGS_HEADER]
-    values = ["%s%s" % (k, str(v)) for k,v in zip(SETTINGS_HEADER, values)]
+    values = [str(settings[v]).lower() for v in SETTINGS_HEADER]
+    values = list(map(lambda x: re.sub("-", "m", x), values))
+    values = ["%s%s" % (k, v) for k,v in zip(SETTINGS_HEADER, values)]
     return str.join("_", values)
 
 def get_sim_name_abbrev(settings):
     values = [str(settings[v]).lower() for v in SETTINGS_HEADER]
+    values = list(map(lambda x: re.sub("-", "m", x), values))
     values = ["%s%s" % (k, str(v)) for k,v in zip(SETTINGS_ABBREV, values)]
     return str.join("_", values)
 

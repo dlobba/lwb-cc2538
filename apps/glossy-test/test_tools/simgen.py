@@ -104,9 +104,9 @@ def check_params():
 
 
     for power in POWERS:
-        if power < 0 or power > 0xff:
+        if power < -24 or power > 7:
             raise ValueError("invalid power value given, allowed range " +
-                    "0x00 - 0xff given {}".format(power))
+                    "[-24, +7] given {}".format(power))
     return True
 
 def get_project_cflags(flag_values):
@@ -117,7 +117,7 @@ def get_project_cflags(flag_values):
     defines = [
         "INITIATOR_ID=%d"     % flag_values[PRJ_INITIATOR],
         "PAYLOAD_LEN=%d"      % flag_values[PRJ_PAYLOAD],
-        "TX_POWER=%s"         % hex(flag_values[PRJ_TX_POWER]),
+        "TX_POWER=%s"         % flag_values[PRJ_TX_POWER],
         "NTX=%s"              % flag_values[PRJ_NTX]
     ]
     return defines
@@ -226,7 +226,7 @@ def generate_simulations(overwrite=False):
         # give a name to current simulation and create
         # the corresponding folder
         sim_name = NAME_PREFIX + "_ntx{}_txpower{}_payload{}_duration{}_init{}"\
-                .format(ntx, hex(txpower), payload, SIM_DURATION, init_id)
+                .format(ntx, re.sub("-", "m", str(txpower)), payload, SIM_DURATION, init_id)
         sim_dir  = os.path.join(SIMS_DIR, sim_name)
 
         # if a folder with the same name already existed then
