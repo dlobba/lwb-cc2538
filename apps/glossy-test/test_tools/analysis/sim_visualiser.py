@@ -136,7 +136,7 @@ def plot_slot_estimation(nodes_estimates, fliers=False):
 
     plt.boxplot(y, showfliers=fliers, autorange=True)
     locs, labels = plt.xticks()
-    plt.xticks(locs, x, rotation=90)
+    plt.xticks(locs, x)
     plt.xlabel("Nodes")
     plt.ylabel(r"Slot estimation ($\times 31$ ns)")
     return x,y
@@ -165,12 +165,12 @@ def plot_flood_trx(nodes_tx, nodes_rx):
     # https://pythonforundergradengineers.com/python-matplotlib-error-bars.html
     width  = 0.35
     ind = np.arange(len(x))
-    b1 = plt.bar(ind        , n_tx_mean, yerr=n_tx_std, width=width, align='center', ecolor='black')
-    b2 = plt.bar(ind + width, n_rx_mean, yerr=n_rx_std, width=width, align='center', ecolor='black')
+    b1 = plt.bar(ind        , n_tx_mean, yerr=[n_tx_std, np.repeat(0, len(n_tx_mean))], width=width, align='center', ecolor='black')
+    b2 = plt.bar(ind + width, n_rx_mean, yerr=[n_rx_std, np.repeat(0, len(n_rx_mean))], width=width, align='center', ecolor='black')
     plt.xticks(ind + width / 2, x)
     plt.xlabel("Nodes")
-    plt.ylabel("# packets")
-    plt.legend((b1[0], b2[0]), ("Tx", "Rx"))
+    plt.ylabel("Avg. Radio Events")
+    plt.legend((b1[0], b2[0]), ("Tx", "Rx"), loc="upper center")
 
 def plot_trx(nodes_tx, nodes_rx):
     """Show total number of "service" packets (NOT application
@@ -188,8 +188,8 @@ def plot_trx(nodes_tx, nodes_rx):
     b2 = plt.bar(ind + width, ntx, width=width)
     plt.xticks(ind + width / 2, x)
     plt.xlabel("Nodes")
-    plt.ylabel("# packets")
-    plt.legend((b1[0], b2[0]), ("Rx", "Tx"))
+    plt.ylabel("Avg. Radio Events")
+    plt.legend((b1[0], b2[0]), ("Rx", "Tx"), loc="lower left")
 
 def plot_trx_errors(nodes_nerrs, nodes_nbad_pkt):
     """Plot the number of transmission and reception
@@ -214,7 +214,7 @@ def plot_trx_errors(nodes_nerrs, nodes_nbad_pkt):
     plt.xticks(ind + width / 2, x, rotation=90)
     plt.xlabel("Nodes")
     plt.ylabel("# errors")
-    plt.legend((b1[0], b2[0]), ("TRx errors", "Bad packets"))
+    plt.legend((b1[0], b2[0]), ("TRx errors", "Bad packets"), loc="upper center")
 
 def plot_trx_error_details(results):
     # reverse key for sorting
@@ -224,9 +224,8 @@ def plot_trx_error_details(results):
     err_list = [k[::-1] for k in err_list]
     val_list = [results[k] for k in err_list]
     ind = np.arange(len(err_list))
-    plt.bar(ind, val_list)
-    plt.xticks(ind, err_list, rotation=45)
-    plt.title("Error Types")
+    plt.bar(ind, val_list, width=0.1)
+    plt.xticks(ind, err_list, rotation=25)
     plt.ylabel("# errors")
 
 def plot_sync_counters(nodes_sync, nodes_desync):
@@ -384,6 +383,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
                 print("Every packet has been received")
 
             plt.figure()
+            plt.tight_layout()
             plot_reception_summary(pkt_tx, nodes_rx)
             pic_out("summary")
             plt.close()
@@ -391,6 +391,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plt.figure()
             nodes_pdr = get_sim_pdr(log_data)
             plot_pdr(nodes_pdr)
+            plt.tight_layout()
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
@@ -403,6 +404,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plt.figure()
             nodes_frelay = get_sim_first_relay_counter(log_data)
             plot_first_relay_counter(nodes_frelay)
+            plt.tight_layout()
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
@@ -443,6 +445,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             plt.figure()
             nodes_sync, nodes_desync = get_sim_sync_counters(log_data)
             plot_sync_counters(nodes_sync, nodes_desync)
+            plt.tight_layout()
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
@@ -456,6 +459,7 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             #plot_trx(log_data)
             nodes_tx, nodes_rx = get_sim_flood_trx(log_data)
             plot_flood_trx(nodes_tx, nodes_rx)
+            plt.tight_layout()
             plot_name = get_current_plot_name()
             pic_out(plot_name)
             plt.close()
@@ -468,13 +472,13 @@ def plot_simulation_results(sim_name, sim_log_path, format_=None, dest_path=None
             nodes_nerr, nodes_nbad_pkt = get_sim_trx_errors(log_data)
             error_details = get_sim_trx_error_details(log_data)
             plt.figure()
-            plt.subplot(1,2,1)
             plot_trx_errors(nodes_nerr, nodes_nbad_pkt)
-            plt.subplot(1,2,2)
+            plt.tight_layout()
+            pic_out("errors")
+            plt.figure()
             plot_trx_error_details(error_details)
             plt.tight_layout()
-            plot_name = get_current_plot_name()
-            pic_out(plot_name)
+            pic_out("error_details")
             plt.close()
         except DAException as e:
             raise e
@@ -500,8 +504,6 @@ if __name__ == "__main__":
     import sys
 
     BASE_PATH = os.path.dirname(sys.argv[0])
-    APP_SOURCE= os.path.abspath(os.path.join(BASE_PATH, "..", "..", "glossy_test.c"))
-
     # -------------------------------------------------------------------------
     # PARSING ARGUMENTS
     # -------------------------------------------------------------------------
